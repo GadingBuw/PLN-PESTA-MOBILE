@@ -3,8 +3,7 @@ import 'models/user_model.dart';
 import 'screens/admin_home.dart';
 import 'screens/tech_home.dart';
 
-// Gunakan 10.0.2.2 jika menggunakan Emulator Android Studio
-// Gunakan IP Laptop jika menggunakan HP Fisik (contoh: 192.168.1.xxx)
+// URL API Anda
 final String baseUrl = "http://10.5.224.202/pesta_api/index.php";
 
 void main() => runApp(
@@ -23,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void login() {
     try {
-      // Pastikan listUser sudah didefinisikan di user_model.dart
       final user = listUser.firstWhere(
         (x) => x.username == u.text && x.password == p.text,
       );
@@ -36,51 +34,181 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Login Gagal!")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Email atau Password Salah!")),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.bolt, size: 80, color: Color(0xFF00549B)),
-            const Text(
-              "PESTA MOBILE",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            TextField(
-              controller: u,
-              decoration: const InputDecoration(
-                labelText: "Username",
-                border: OutlineInputBorder(),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        // Latar belakang gradasi biru sesuai desain
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1A56F0), Color(0xFF0039A6)],
+          ),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              const SizedBox(height: 100),
+              // Logo PLN
+              Container(
+                width: 90,
+                height: 90,
+                decoration: BoxDecoration(
+                  color: Colors.yellow,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: const Icon(Icons.bolt, size: 70, color: Colors.red),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: p,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: "Password",
-                border: OutlineInputBorder(),
+              const SizedBox(height: 15),
+              const Text(
+                "PESTA MOBILE",
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: login,
-                child: const Text("MASUK"),
+              const Text(
+                "PLN - Pemasangan & Pembongkaran Daya",
+                style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
-            ),
-          ],
+              const SizedBox(height: 50),
+              // Kotak Form Login
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 25),
+                child: Container(
+                  padding: const EdgeInsets.all(25),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Login ke Akun Anda",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF333333),
+                        ),
+                      ),
+                      const SizedBox(height: 25),
+                      const Text(
+                        "Email atau ID Pegawai",
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: u,
+                        decoration: InputDecoration(
+                          hintText: "Email atau Username",
+                          prefixIcon: const Icon(
+                            Icons.email_outlined,
+                            size: 20,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 15,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E0E0),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E0E0),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        "Password",
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: p,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          hintText: "Masukkan Password",
+                          prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 15,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E0E0),
+                            ),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(15),
+                            borderSide: const BorderSide(
+                              color: Color(0xFFE0E0E0),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 35),
+                      // Tombol Masuk
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          onPressed: login,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1A56F0),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                "Masuk",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              SizedBox(width: 10),
+                              Icon(
+                                Icons.arrow_forward,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 60),
+              const Text(
+                "© 2026 PLN. All Rights Reserved.",
+                style: TextStyle(color: Colors.white54, fontSize: 11),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
         ),
       ),
     );
