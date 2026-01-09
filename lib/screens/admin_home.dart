@@ -10,13 +10,18 @@ import 'profile_screen.dart';
 class AdminHome extends StatefulWidget {
   final UserModel user;
   const AdminHome({super.key, required this.user});
+
   @override
   State<AdminHome> createState() => _AdminHomeState();
 }
 
 class _AdminHomeState extends State<AdminHome> {
   int _selectedIndex = 0;
-  Map<String, dynamic> stats = {"selesai": "0", "progress": "0", "pending": "0"};
+  Map<String, dynamic> stats = {
+    "selesai": "1",
+    "progress": "1",
+    "pending": "2",
+  };
 
   @override
   void initState() {
@@ -26,7 +31,9 @@ class _AdminHomeState extends State<AdminHome> {
 
   Future<void> _fetchStats() async {
     try {
-      final response = await http.get(Uri.parse("$baseUrl?action=get_admin_stats"));
+      final response = await http.get(
+        Uri.parse("$baseUrl?action=get_admin_stats"),
+      );
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
         if (mounted) {
@@ -43,115 +50,291 @@ class _AdminHomeState extends State<AdminHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: const Padding(
-          padding: EdgeInsets.all(8.0),
-          child: Icon(Icons.bolt, color: Colors.blue, size: 30),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Selamat datang,", style: TextStyle(fontSize: 12, color: Colors.grey)),
-            Text(widget.user.nama, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black)),
-          ],
-        ),
-      ),
+      backgroundColor: const Color(0xFFF8F9FB),
+      appBar: _selectedIndex == 0
+          ? AppBar(
+              backgroundColor: Colors.white,
+              elevation: 0,
+              leading: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Image.network(
+                  'https://upload.wikimedia.org/wikipedia/commons/9/97/Logo_PLN.png',
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    decoration: BoxDecoration(
+                      color: Colors.yellow,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.bolt, color: Colors.red),
+                  ),
+                ),
+              ),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Selamat datang,",
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  Text(
+                    widget.user.nama,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                IconButton(
+                  onPressed: () {},
+                  icon: const Icon(
+                    Icons.notifications_none,
+                    color: Colors.black54,
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {},
+                  icon: const Icon(Icons.more_vert, color: Colors.black54),
+                ),
+                const SizedBox(width: 8),
+              ],
+            )
+          : null,
       body: [
         _buildBeranda(),
-        const AdminMonitoringScreen(),
+        AdminMonitoringScreen(onBack: () => setState(() => _selectedIndex = 0)),
         ProfileScreen(user: widget.user),
       ][_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
-        selectedItemColor: const Color(0xFF00549B),
-        onTap: (index) {
-          setState(() => _selectedIndex = index);
-          if (index == 0) _fetchStats();
-        },
+        selectedItemColor: const Color(0xFF1A56F0),
+        onTap: (index) => setState(() => _selectedIndex = index),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Beranda"),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: "Monitoring"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Akun"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            label: "Beranda",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: "Monitoring",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            label: "Akun",
+          ),
         ],
       ),
     );
   }
 
   Widget _buildBeranda() {
-    return RefreshIndicator(
-      onRefresh: _fetchStats,
-      child: ListView(
-        padding: const EdgeInsets.all(20),
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // --- BAGIAN STATUS PEKERJAAN HARI INI (SAMA PERSIS GAMBAR) ---
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00C7E1),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                "Status Pekerjaan Hari Ini",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildStatBox(
+                      Icons.check_circle_outline,
+                      stats['selesai'].toString(),
+                      "Selesai",
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatBox(
+                      Icons.access_time,
+                      stats['progress'].toString(),
+                      "Progress",
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildStatBox(
+                      Icons.warning_amber_rounded,
+                      stats['pending'].toString(),
+                      "Pending",
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 25),
+
+        // --- BAGIAN MENU NAVIGASI ---
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 15,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildMenuIcon(Icons.add, "Input\nPengajuan", () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (c) => const AdminScreen()),
+                ).then((_) => _fetchStats());
+              }),
+              _buildMenuIcon(
+                Icons.bar_chart,
+                "Monitoring\nProgress",
+                () => setState(() => _selectedIndex = 1),
+              ),
+              _buildMenuIcon(Icons.people_outline, "Kelola\nTeknisi", () {}),
+              _buildMenuIcon(Icons.description_outlined, "Laporan", () {}),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 25),
+        const Text(
+          "Pemberitahuan",
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const SizedBox(height: 15),
+
+        // --- BAGIAN PEMBERITAHUAN ---
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.notifications_none, color: Colors.blue),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Update Status Tugas",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      "Ada ${stats['pending']} tugas yang menunggu dikerjakan dan ${stats['progress']} tugas sedang dalam proses.",
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      "Hari ini, 6/1/2026",
+                      style: TextStyle(fontSize: 10, color: Colors.black26),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatBox(IconData icon, String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF00CCFF), 
-              borderRadius: BorderRadius.circular(15)
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _StatItem(stats['selesai'].toString(), "Selesai"),
-                _StatItem(stats['progress'].toString(), "Progress"),
-                _StatItem(stats['pending'].toString(), "Pending"),
-              ],
+          Icon(icon, color: Colors.white, size: 28),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 30),
-          const Text("Menu Navigasi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(height: 15),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            mainAxisSpacing: 15,
-            crossAxisSpacing: 15,
-            children: [
-              _MenuTile(Icons.add_circle, "Input Pengajuan", Colors.cyan, () {
-                Navigator.push(context, MaterialPageRoute(builder: (c) => const AdminScreen()))
-                    .then((_) => _fetchStats());
-              }),
-              _MenuTile(Icons.analytics, "Monitoring Progress", Colors.cyan, () => setState(() => _selectedIndex = 1)),
-              _MenuTile(Icons.people, "Kelola Teknisi", Colors.cyan, () {}),
-              _MenuTile(Icons.description, "Laporan", Colors.cyan, () {}),
-            ],
-          )
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
         ],
       ),
     );
   }
-}
 
-class _StatItem extends StatelessWidget {
-  final String val, label;
-  const _StatItem(this.val, this.label);
-  @override
-  Widget build(BuildContext context) {
-    return Column(children: [
-      Text(val, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-      Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
-    ]);
-  }
-}
-
-class _MenuTile extends StatelessWidget {
-  final IconData icon; final String label; final Color color; final VoidCallback onTap;
-  const _MenuTile(this.icon, this.label, this.color, this.onTap);
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
+  Widget _buildMenuIcon(IconData icon, String label, VoidCallback onTap) {
+    return GestureDetector(
       onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(15)),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(icon, size: 40, color: color),
-          const SizedBox(height: 10),
-          Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-        ]),
+      child: SizedBox(
+        width: 80,
+        child: Column(
+          children: [
+            Container(
+              height: 60,
+              width: 60,
+              decoration: BoxDecoration(
+                color: const Color(0xFF00C7E1),
+                borderRadius: BorderRadius.circular(15),
+              ),
+              child: Icon(icon, color: Colors.white, size: 28),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54,
+                height: 1.2,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

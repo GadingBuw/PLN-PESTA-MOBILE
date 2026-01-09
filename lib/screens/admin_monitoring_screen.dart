@@ -4,7 +4,8 @@ import 'dart:convert';
 import '../main.dart';
 
 class AdminMonitoringScreen extends StatefulWidget {
-  const AdminMonitoringScreen({super.key});
+  final VoidCallback? onBack; // Parameter untuk fungsi kembali ke tab Beranda
+  const AdminMonitoringScreen({super.key, this.onBack});
 
   @override
   State<AdminMonitoringScreen> createState() => _AdminMonitoringScreenState();
@@ -21,10 +22,10 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
 
   Future<List<dynamic>> fetchMonitoring() async {
     try {
-      final response = await http.get(Uri.parse("$baseUrl?action=get_monitoring"));
+      final response = await http.get(
+        Uri.parse("$baseUrl?action=get_monitoring"),
+      );
       if (response.statusCode == 200) {
-        // Tambahkan print untuk debug di console jika masih kosong
-        print("Response Monitoring: ${response.body}");
         return jsonDecode(response.body);
       }
       return [];
@@ -34,123 +35,213 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
     }
   }
 
-  Future<void> _refreshData() async {
-    setState(() {
-      _monitoringFuture = fetchMonitoring();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F9),
-      body: FutureBuilder<List<dynamic>>(
-        future: _monitoringFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          
-          if (snapshot.hasError) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          }
-
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: _refreshData,
-              child: ListView(
-                children: const [
-                  SizedBox(height: 200),
-                  Center(child: Text("Belum ada data penugasan teknisi.")),
-                ],
-              ),
-            );
-          }
-          
-          return RefreshIndicator(
-            onRefresh: _refreshData,
-            child: ListView.builder(
-              padding: const EdgeInsets.all(15),
-              itemCount: snapshot.data!.length,
-              itemBuilder: (context, index) {
-                var data = snapshot.data![index];
-                
-                String namaTeknisi = (data['teknisi'] ?? "Tanpa Nama").toString();
-                String statusKapasitas = (data['kapasitas'] ?? "Tersedia").toString();
-                bool isFull = statusKapasitas == "Jadwal Penuh";
-                
-                return Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  margin: const EdgeInsets.only(bottom: 15),
-                  elevation: 2,
-                  child: Padding(
-                    padding: const EdgeInsets.all(15),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            const CircleAvatar(
-                              backgroundColor: Color(0xFFE3F2FD), 
-                              child: Icon(Icons.person, color: Colors.blue)
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    namaTeknisi.toUpperCase(), 
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
-                                  ),
-                                  const Text("Teknisi Lapangan", 
-                                    style: TextStyle(color: Colors.grey, fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isFull ? Colors.red[50] : Colors.green[50], 
-                                borderRadius: BorderRadius.circular(10)
-                              ),
-                              child: Text(
-                                statusKapasitas, 
-                                style: TextStyle(
-                                  fontSize: 10, 
-                                  color: isFull ? Colors.red : Colors.green, 
-                                  fontWeight: FontWeight.bold
-                                )
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(height: 30),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _statCol("TOTAL", (data['total_tugas'] ?? "0").toString()),
-                            _statCol("SELESAI", (data['selesai'] ?? "0").toString()),
-                            _statCol("PENDING", (data['pending'] ?? "0").toString()),
-                          ],
-                        ),
-                      ],
+      backgroundColor: Colors.white,
+      body: Column(
+        children: [
+          // --- HEADER BIRU ---
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(
+              top: 50,
+              left: 10,
+              right: 20,
+              bottom: 20,
+            ),
+            color: const Color(0xFF1A56F0),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () {
+                    // LOGIKA BACK:
+                    // Jika ada fungsi onBack (dari tab AdminHome), jalankan.
+                    // Jika tidak (dibuka via Navigator.push), lakukan pop.
+                    if (widget.onBack != null) {
+                      widget.onBack!();
+                    } else if (Navigator.canPop(context)) {
+                      Navigator.pop(context);
+                    }
+                  },
+                ),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Monitoring",
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
+                    Text(
+                      "Progress Global Teknisi",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // --- DAFTAR TEKNISI ---
+          Expanded(
+            child: FutureBuilder<List<dynamic>>(
+              future: _monitoringFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                final listData = snapshot.data ?? [];
+
+                return RefreshIndicator(
+                  onRefresh: () async => setState(() {
+                    _monitoringFuture = fetchMonitoring();
+                  }),
+                  child: ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      const Text(
+                        "Status Petugas Lapangan",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const Text(
+                        "Klik untuk melihat detail tugas teknisi",
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 20),
+
+                      if (listData.isEmpty)
+                        const Center(child: Text("Belum ada data penugasan."))
+                      else
+                        ...listData
+                            .map((data) => _buildTechnicianCard(data))
+                            .toList(),
+                    ],
                   ),
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }
 
-  Widget _statCol(String label, String value) {
-    return Column(
-      children: [
-        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
-        Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-      ],
+  Widget _buildTechnicianCard(Map<String, dynamic> data) {
+    // Pastikan data casting aman
+    int selesai = int.tryParse(data['selesai'].toString()) ?? 0;
+    int progress = int.tryParse(data['progress'].toString()) ?? 0;
+    int pending = int.tryParse(data['pending'].toString()) ?? 0;
+    int total = int.tryParse(data['total_tugas'].toString()) ?? 0;
+    double progressPercent = total > 0 ? selesai / total : 0.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.person_outline,
+                  color: Colors.blue,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      data['teknisi'] ?? "Tanpa Nama",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const Text(
+                      "Wilayah Kerja",
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: Colors.grey),
+            ],
+          ),
+          const SizedBox(height: 15),
+          LinearProgressIndicator(
+            value: progressPercent,
+            minHeight: 8,
+            backgroundColor: Colors.grey.shade200,
+            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+          ),
+          const SizedBox(height: 15),
+          Row(
+            children: [
+              _buildStatBox("Selesai", selesai, Colors.green),
+              const SizedBox(width: 8),
+              _buildStatBox("Progress", progress, Colors.blue),
+              const SizedBox(width: 8),
+              _buildStatBox("Pending", pending, Colors.orange),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatBox(String label, int value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              value.toString(),
+              style: TextStyle(
+                color: color,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

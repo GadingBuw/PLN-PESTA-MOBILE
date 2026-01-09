@@ -1,234 +1,475 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:geocoding/geocoding.dart'; 
+import 'package:geocoding/geocoding.dart';
+import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../main.dart';
-import '../models/user_model.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
+
   @override
   State<AdminScreen> createState() => _AdminScreenState();
 }
 
 class _AdminScreenState extends State<AdminScreen> {
-  final idPelCtrl = TextEditingController();
+  // Controller Input
+  final idPelCtrl = TextEditingController(text: "PLG-2026-XXX");
   final namaCtrl = TextEditingController();
   final alamatCtrl = TextEditingController();
   final dayaCtrl = TextEditingController();
+  final tglPasangCtrl = TextEditingController();
+  final tglBongkarCtrl = TextEditingController();
+  final searchCtrl = TextEditingController(); // Controller untuk search alamat
+
+  // State Teknisi dari API
+  String? _selectedTeknisi;
+  List<dynamic> _listTeknisi = [];
+  bool _isFetchingTeknisi = true;
+
+  // State Peta
   final MapController _mapController = MapController();
-  
-  DateTime? tglP;
-  DateTime? tglB;
-  LatLng _selectedLocation = const LatLng(-8.2045, 111.0921); // Default: Pacitan
-  String? selectedTeknisi;
-  
-  List<UserModel> availableTeknisi = [];
-  bool isLoadingTeknisi = false;
+  LatLng _selectedLocation = const LatLng(-6.2000, 106.8166);
 
-  // FUNGSI PENCARIAN ALAMAT
+  // Tema Warna
+  final Color primaryBlue = const Color(0xFF1A56F0);
+  final Color bgLight = const Color(0xFFF8F9FB);
+  final List<String> listDaya = [
+    "5500",
+    "6600",
+    "7700",
+    "11000",
+    "13200",
+    "16500",
+    "23000",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTeknisi();
+  }
+
+  // --- FITUR SEARCH ALAMAT KE PETA ---
   Future<void> _searchFromAddress() async {
-    if (alamatCtrl.text.isEmpty) return;
-    
-    // Tampilkan loading kecil saat mencari
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Sedang mencari lokasi..."), duration: Duration(seconds: 1)),
-    );
-
+    if (searchCtrl.text.isEmpty) return;
     try {
-      // Tips: Tambahkan konteks negara/kota jika pencarian terlalu umum
-      String query = alamatCtrl.text;
-      List<Location> locations = await locationFromAddress(query);
-
+      List<Location> locations = await locationFromAddress(searchCtrl.text);
       if (locations.isNotEmpty) {
         setState(() {
-          _selectedLocation = LatLng(locations.first.latitude, locations.first.longitude);
+          _selectedLocation = LatLng(
+            locations.first.latitude,
+            locations.first.longitude,
+          );
           _mapController.move(_selectedLocation, 15.0);
         });
       }
     } catch (e) {
-      if (!mounted) return;
-      // Jika error, coba sarankan user untuk lebih spesifik (misal: "Monas Jakarta")
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Alamat tidak ditemukan. Coba tambahkan nama kota (contoh: Monas Jakarta)"),
-          backgroundColor: Colors.red,
-        ),
-      );
-      debugPrint("Geocoding Error: $e");
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Alamat tidak ditemukan")));
     }
   }
 
-  Future<void> _filterTeknisi(DateTime date) async {
-    setState(() {
-      isLoadingTeknisi = true;
-      selectedTeknisi = null;
-    });
-
+  // --- AMBIL DATA TEKNISI DARI API ---
+  Future<void> _fetchTeknisi() async {
     try {
-      String formattedDate = DateFormat('yyyy-MM-dd').format(date);
       final response = await http.get(
-        Uri.parse("$baseUrl?action=get_busy_teknisi&tanggal=$formattedDate"),
+        Uri.parse("$baseUrl?action=get_monitoring"),
       );
-
       if (response.statusCode == 200) {
-        List<dynamic> busyUsernames = jsonDecode(response.body);
         setState(() {
-          availableTeknisi = listUser.where((u) {
-            return u.role == "teknisi" && !busyUsernames.contains(u.username);
-          }).toList();
-          isLoadingTeknisi = false;
+          _listTeknisi = jsonDecode(response.body);
+          _isFetchingTeknisi = false;
         });
       }
     } catch (e) {
-      setState(() => isLoadingTeknisi = false);
+      setState(() => _isFetchingTeknisi = false);
     }
   }
 
-  Future<void> _kirimData() async {
-    if (tglP == null || tglB == null || idPelCtrl.text.isEmpty || selectedTeknisi == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lengkapi data & Pilih Teknisi!")));
+  // --- SIMPAN KE DATABASE ---
+  Future<void> _saveData() async {
+    if (namaCtrl.text.isEmpty ||
+        _selectedTeknisi == null ||
+        tglPasangCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Lengkapi semua data!")));
       return;
     }
 
-    showDialog(context: context, barrierDismissible: false, builder: (c) => const Center(child: CircularProgressIndicator()));
-
     try {
-      final response = await http.post(
+      var response = await http.post(
         Uri.parse("$baseUrl?action=add_task"),
         body: {
-          'id_pelanggan': idPelCtrl.text,
-          'nama_pelanggan': namaCtrl.text,
-          'alamat': alamatCtrl.text,
-          'daya': dayaCtrl.text,
-          'tgl_pasang': DateFormat('yyyy-MM-dd').format(tglP!),
-          'tgl_bongkar': DateFormat('yyyy-MM-dd').format(tglB!),
-          'teknisi': selectedTeknisi,
-          'latitude': _selectedLocation.latitude.toString(),
-          'longitude': _selectedLocation.longitude.toString(),
+          "id_pelanggan": idPelCtrl.text,
+          "nama_pelanggan": namaCtrl.text,
+          "alamat": alamatCtrl.text,
+          "daya": dayaCtrl.text,
+          "tgl_pasang": tglPasangCtrl.text,
+          "tgl_bongkar": tglBongkarCtrl.text,
+          "teknisi": _selectedTeknisi,
+          "latitude": _selectedLocation.latitude.toString(),
+          "longitude": _selectedLocation.longitude.toString(),
         },
       );
 
-      if (!mounted) return;
-      Navigator.pop(context);
-
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Penugasan Berhasil Disimpan!")));
-        Navigator.pop(context);
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Pengajuan Berhasil Disimpan")),
+          );
+        }
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      debugPrint("Error: $e");
+    }
+  }
+
+  Future<void> _selectDate(
+    BuildContext context,
+    TextEditingController ctrl,
+  ) async {
+    DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null) {
+      setState(() => ctrl.text = DateFormat('yyyy-MM-dd').format(picked));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Tugaskan & Set Lokasi"), 
-        backgroundColor: const Color(0xFF00549B), 
-        foregroundColor: Colors.white
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      backgroundColor: bgLight,
+      body: Column(
         children: [
-          TextField(controller: idPelCtrl, decoration: const InputDecoration(labelText: "ID Pelanggan", border: OutlineInputBorder())),
-          const SizedBox(height: 15),
-          TextField(controller: namaCtrl, decoration: const InputDecoration(labelText: "Nama Pelanggan", border: OutlineInputBorder())),
-          const SizedBox(height: 15),
-          
-          TextField(
-            controller: alamatCtrl, 
-            decoration: InputDecoration(
-              labelText: "Alamat Lengkap", 
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.search), 
-                onPressed: _searchFromAddress,
+          // Header
+          Container(
+            padding: const EdgeInsets.only(
+              top: 50,
+              left: 10,
+              right: 20,
+              bottom: 20,
+            ),
+            width: double.infinity,
+            color: primaryBlue,
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Form Pengajuan",
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    Text(
+                      "PESTA Baru",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(15),
+              children: [
+                _buildCardSection(
+                  icon: Icons.person_outline,
+                  title: "Informasi Pelanggan",
+                  children: [
+                    _buildLabel("ID Pelanggan"),
+                    _buildTextField(idPelCtrl, "PLG-2026-XXX"),
+                    const SizedBox(height: 15),
+                    _buildLabel("Nama Pelanggan"),
+                    _buildTextField(namaCtrl, "Nama Pelanggan"),
+                    const SizedBox(height: 15),
+                    _buildLabel("Daya (VA)"),
+                    _buildDropdownDaya(),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                _buildCardSection(
+                  icon: Icons.engineering_outlined,
+                  title: "Penjadwalan & Teknisi",
+                  iconColor: Colors.orange,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildLabel("Tgl Pasang"),
+                              _buildDateField(tglPasangCtrl),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildLabel("Tgl Bongkar"),
+                              _buildDateField(tglBongkarCtrl),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+                    _buildLabel("Pilih Teknisi Lapangan"),
+                    _buildDropdownTeknisi(),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                _buildCardSection(
+                  icon: Icons.location_on_outlined,
+                  title: "Lokasi Pemasangan",
+                  iconColor: Colors.redAccent,
+                  children: [
+                    _buildLabel("Cari Alamat untuk Peta"),
+                    _buildSearchField(), // FITUR SEARCH TETAP ADA
+                    const SizedBox(height: 15),
+                    _buildLabel("Alamat Lengkap (Manual)"),
+                    _buildTextField(alamatCtrl, "Jl. ...", maxLines: 2),
+                    const SizedBox(height: 15),
+                    _buildMapWidget(),
+                  ],
+                ),
+                const SizedBox(height: 100),
+              ],
+            ),
+          ),
+        ],
+      ),
+      bottomSheet: _buildSaveButton(),
+    );
+  }
+
+  // --- WIDGET SEARCH FIELD ---
+  Widget _buildSearchField() {
+    return TextField(
+      controller: searchCtrl,
+      onSubmitted: (_) => _searchFromAddress(),
+      decoration: InputDecoration(
+        hintText: "Ketik alamat lalu tekan cari...",
+        prefixIcon: const Icon(Icons.search, color: Colors.blue),
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.send, color: Colors.blue),
+          onPressed: _searchFromAddress,
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: Colors.grey.shade300),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: primaryBlue),
+        ),
+      ),
+    );
+  }
+
+  // --- DROPDOWN TEKNISI DARI API ---
+  Widget _buildDropdownTeknisi() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: _isFetchingTeknisi
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(10),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedTeknisi,
+                hint: const Text(
+                  "Pilih Nama Teknisi",
+                  style: TextStyle(color: Colors.black26, fontSize: 14),
+                ),
+                isExpanded: true,
+                items: _listTeknisi.map((item) {
+                  return DropdownMenuItem<String>(
+                    value: item['teknisi'],
+                    child: Text(item['teknisi']),
+                  );
+                }).toList(),
+                onChanged: (val) => setState(() => _selectedTeknisi = val),
               ),
             ),
-            onSubmitted: (_) => _searchFromAddress(),
+    );
+  }
+
+  // Widget pendukung lainnya
+  Widget _buildDropdownDaya() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: dayaCtrl.text.isEmpty ? null : dayaCtrl.text,
+          hint: const Text(
+            "Pilih Daya VA",
+            style: TextStyle(color: Colors.black26, fontSize: 14),
+          ),
+          isExpanded: true,
+          items: listDaya
+              .map(
+                (val) => DropdownMenuItem(value: val, child: Text("$val VA")),
+              )
+              .toList(),
+          onChanged: (val) => setState(() => dayaCtrl.text = val!),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSaveButton() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      color: bgLight,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: primaryBlue,
+          minimumSize: const Size(double.infinity, 55),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        onPressed: _saveData,
+        child: const Text(
+          "Simpan Pengajuan",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCardSection({
+    required IconData icon,
+    required String title,
+    required List<Widget> children,
+    Color iconColor = Colors.blue,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: iconColor, size: 22),
+              const SizedBox(width: 10),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
           ),
           const SizedBox(height: 20),
-          
-          _buildDatePicker("Tgl Pasang", tglP, (date) {
-            setState(() => tglP = date);
-            _filterTeknisi(date);
-          }, Colors.blue.shade50),
-          const SizedBox(height: 10),
-          _buildDatePicker("Tgl Bongkar", tglB, (date) => setState(() => tglB = date), Colors.orange.shade50),
-          
-          const SizedBox(height: 25),
-          
-          const Text("Teknisi Tersedia (Maks 2 Tugas/Hari):", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF00549B))),
-          const SizedBox(height: 10),
-          isLoadingTeknisi 
-            ? const LinearProgressIndicator()
-            : DropdownButtonFormField<String>(
-                value: selectedTeknisi,
-                hint: Text(tglP == null ? "Pilih tanggal pasang dulu" : "Pilih Teknisi"),
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-                items: availableTeknisi.map((u) => DropdownMenuItem(value: u.username, child: Text("${u.nama} (${u.username})"))).toList(),
-                onChanged: (val) => setState(() => selectedTeknisi = val),
-              ),
-          if (tglP != null && availableTeknisi.isEmpty && !isLoadingTeknisi)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text("❌ Maaf, semua teknisi sudah penuh hari ini!", style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
-            ),
-
-          const SizedBox(height: 30),
-          const Text("Set Lokasi Pesta di Peta:", style: TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 200,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(15),
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: _selectedLocation, 
-                  initialZoom: 13.0, 
-                  onTap: (p, point) => setState(() => _selectedLocation = point),
-                ),
-                children: [
-                  TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
-                  MarkerLayer(markers: [
-                    Marker(
-                      point: _selectedLocation, 
-                      width: 40, height: 40, 
-                      child: const Icon(Icons.location_on, color: Colors.red, size: 40),
-                    ),
-                  ]),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 30),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00549B), foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
-            onPressed: _kirimData, 
-            child: const Text("SIMPAN PENUGASAN")
-          ),
+          ...children,
         ],
       ),
     );
   }
 
-  Widget _buildDatePicker(String label, DateTime? value, Function(DateTime) onSelect, Color color) {
-    return ListTile(
-      tileColor: color,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      title: Text(value == null ? "Set $label" : DateFormat('dd-MM-yyyy').format(value)),
-      trailing: const Icon(Icons.calendar_month),
-      onTap: () async {
-        DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime(2030));
-        if (picked != null) onSelect(picked);
-      },
-    );
-  }
+  Widget _buildLabel(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 12, color: Colors.black54),
+    ),
+  );
+  Widget _buildTextField(
+    TextEditingController ctrl,
+    String hint, {
+    int maxLines = 1,
+  }) => TextField(
+    controller: ctrl,
+    maxLines: maxLines,
+    decoration: InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(10),
+        borderSide: BorderSide(color: primaryBlue),
+      ),
+    ),
+  );
+  Widget _buildDateField(TextEditingController ctrl) => InkWell(
+    onTap: () => _selectDate(context, ctrl),
+    child: IgnorePointer(child: _buildTextField(ctrl, "YYYY-MM-DD")),
+  );
+  Widget _buildMapWidget() => Container(
+    height: 200,
+    decoration: BoxDecoration(borderRadius: BorderRadius.circular(12)),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: _selectedLocation,
+          initialZoom: 13,
+          onTap: (p, point) => setState(() => _selectedLocation = point),
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          ),
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: _selectedLocation,
+                width: 40,
+                height: 40,
+                child: const Icon(
+                  Icons.location_on,
+                  color: Colors.red,
+                  size: 40,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }

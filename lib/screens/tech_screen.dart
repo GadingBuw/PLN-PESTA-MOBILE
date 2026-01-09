@@ -16,7 +16,9 @@ class TechScreen extends StatefulWidget {
 class _TechScreenState extends State<TechScreen> {
   // Ambil data dari API dengan filter nama teknisi
   Future<List> fetchMyTasks() async {
-    final response = await http.get(Uri.parse("$baseUrl?action=get_tasks&teknisi=${widget.user.username}"));
+    final response = await http.get(
+      Uri.parse("$baseUrl?action=get_tasks&teknisi=${widget.user.username}"),
+    );
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
@@ -26,12 +28,18 @@ class _TechScreenState extends State<TechScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Tugas Saya: ${widget.user.username}"), backgroundColor: const Color(0xFF00549B), foregroundColor: Colors.white),
+      appBar: AppBar(
+        title: Text("Tugas Saya: ${widget.user.username}"),
+        backgroundColor: const Color(0xFF00549B),
+        foregroundColor: Colors.white,
+      ),
       body: FutureBuilder<List>(
         future: fetchMyTasks(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          if (snapshot.data!.isEmpty) return const Center(child: Text("Belum ada tugas hari ini."));
+          if (!snapshot.hasData)
+            return const Center(child: CircularProgressIndicator());
+          if (snapshot.data!.isEmpty)
+            return const Center(child: Text("Belum ada tugas hari ini."));
 
           return ListView.builder(
             padding: const EdgeInsets.all(15),
@@ -40,11 +48,21 @@ class _TechScreenState extends State<TechScreen> {
               var task = snapshot.data![index];
               return Card(
                 child: ListTile(
-                  title: Text(task['nama_pelanggan'], style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Text("ID: ${task['id_pelanggan']}\nAlamat: ${task['alamat']}"),
+                  title: Text(
+                    task['nama_pelanggan'],
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Text(
+                    "ID: ${task['id_pelanggan']}\nAlamat: ${task['alamat']}",
+                  ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (c) => TechDetailScreen(taskData: task))).then((_) => setState(() {}));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (c) => TechDetailScreen(taskData: task),
+                      ),
+                    ).then((_) => setState(() {}));
                   },
                 ),
               );
