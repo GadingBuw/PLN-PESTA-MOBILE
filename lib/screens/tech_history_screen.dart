@@ -30,12 +30,8 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
           "$baseUrl?action=get_history&teknisi=${widget.user.username}",
         ),
       );
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        throw "Server Error: ${response.statusCode}";
-      }
+      if (response.statusCode == 200) return jsonDecode(response.body);
+      throw "Server Error: ${response.statusCode}";
     } catch (e) {
       throw "Gagal terhubung ke server.";
     }
@@ -45,7 +41,7 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
     if (dateStr == null || dateStr.isEmpty || dateStr == "0000-00-00")
       return "-";
     try {
-      return DateFormat('d MMM').format(DateTime.parse(dateStr));
+      return DateFormat('d MMM yyyy').format(DateTime.parse(dateStr));
     } catch (e) {
       return "-";
     }
@@ -58,16 +54,13 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
       body: FutureBuilder<List<dynamic>>(
         future: _historyFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting)
             return const Center(child: CircularProgressIndicator());
-          }
-
           final listData = snapshot.data ?? [];
 
           return ListView(
             padding: EdgeInsets.zero,
             children: [
-              // --- BLUE HEADER (Sesuai Gambar f1b45e) ---
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.only(
@@ -88,69 +81,18 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 15),
-                    Container(
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
+                    const SizedBox(height: 5),
+                    const Text(
+                      "Riwayat Pengerjaan Rill",
+                      style: TextStyle(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: Row(
-                        children: [
-                          const CircleAvatar(
-                            backgroundColor: Color(0xFF00C7E1),
-                            child: Icon(Icons.person, color: Colors.white),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  "Teknisi PESTA",
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                Text(
-                                  widget.user.nama,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Column(
-                            children: [
-                              const Text(
-                                "Tugas Hari Ini",
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const Text(
-                                "4",
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  color: Color(0xFF1A56F0),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
               ),
-
-              // --- STATISTIK RIWAYAT (Sesuai Gambar f1ac46) ---
               Padding(
                 padding: const EdgeInsets.all(15),
                 child: Container(
@@ -161,39 +103,25 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(color: Colors.grey.shade200),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Riwayat Pekerjaan",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        "Total ${listData.length} tugas",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    "Total ${listData.length} agenda terselesaikan",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.blue,
+                    ),
                   ),
                 ),
               ),
-
-              // --- LIST TUGAS ---
               if (listData.isEmpty)
                 const Center(
                   child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text("Tidak ada riwayat."),
+                    padding: EdgeInsets.all(40),
+                    child: Text("Belum ada riwayat pengerjaan."),
                   ),
                 )
               else
                 ...listData.map((task) => _buildHistoryCard(task)).toList(),
-
               const SizedBox(height: 20),
             ],
           );
@@ -203,17 +131,8 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
   }
 
   Widget _buildHistoryCard(Map<String, dynamic> task) {
-    String type =
-        task['status'].toString().contains('Pemasangan') ||
-            task['daya'].toString().contains('Tambah')
-        ? "PEMASANGAN"
-        : "PEMBONGKARAN";
-
-    bool isBongkar = type == "PEMBONGKARAN";
-    Color themeColor = isBongkar
-        ? const Color(0xFFFFEBEB)
-        : const Color(0xFFE8F5E9);
-    Color textColor = isBongkar ? Colors.red : Colors.green;
+    bool isSelesai = task['status'] == 'Selesai';
+    Color textColor = isSelesai ? Colors.green : Colors.orange;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
@@ -250,157 +169,70 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: themeColor,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            type,
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          task['id_pelanggan'] ?? "T001",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      "Agenda: ${task['id_pelanggan']}",
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
                     ),
-                    const Icon(
-                      Icons.arrow_forward_ios,
-                      size: 12,
-                      color: Colors.grey,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: textColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        task['status'].toUpperCase(),
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 8,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  task['nama_pelanggan'] ?? "Nama Pelanggan",
+                  task['nama_pelanggan'] ?? "",
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.location_on_outlined,
-                      size: 14,
-                      color: Colors.grey,
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        task['alamat'] ?? "Alamat",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
+                Text(
+                  task['alamat'] ?? "",
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 10),
+                const Divider(height: 25),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Icon(Icons.bolt, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    const Text(
-                      "Tambah Daya:",
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      "${task['daya']} VA",
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // --- PROGRESS BAR (Sesuai Gambar f1ac46) ---
-                Row(
-                  children: [
-                    Text(
-                      "Pasang: ${formatDate(task['tgl_pasang'])}",
-                      style: const TextStyle(fontSize: 10, color: Colors.blue),
-                    ),
-                    Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 10),
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(2),
+                    _dateInfo("Tgl Pasang", formatDate(task['tgl_pasang'])),
+                    _dateInfo("Tgl Bongkar", formatDate(task['tgl_bongkar'])),
+                    Column(
+                      children: [
+                        const Text(
+                          "Daya",
+                          style: TextStyle(fontSize: 9, color: Colors.grey),
                         ),
-                        child: FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: task['status'] == 'Selesai' ? 1.0 : 0.4,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.orange,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
+                        Text(
+                          "${task['daya']} VA",
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ),
-                    ),
-                    Text(
-                      "Bongkar: ${formatDate(task['tgl_bongkar'])}",
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      ],
                     ),
                   ],
-                ),
-                const SizedBox(height: 15),
-
-                // --- STATUS BOX (Sesuai Gambar f1ac46) ---
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF9E6),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: const Color(0xFFFFE082).withOpacity(0.5),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        color: Colors.orange,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        task['status'] ?? "Status",
-                        style: const TextStyle(
-                          color: Colors.orange,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -409,4 +241,15 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
       ),
     );
   }
+
+  Widget _dateInfo(String label, String val) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+      Text(
+        val,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+      ),
+    ],
+  );
 }

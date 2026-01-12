@@ -4,8 +4,10 @@ import 'dart:convert';
 import '../models/user_model.dart';
 import '../main.dart';
 import 'admin_screen.dart';
-import 'admin_monitoring_screen.dart';
 import 'profile_screen.dart';
+import 'manage_tech_screen.dart'; 
+import 'report_screen.dart'; // Menambahkan import untuk halaman laporan
+import 'admin_monitoring_screen.dart';
 
 class AdminHome extends StatefulWidget {
   final UserModel user;
@@ -17,11 +19,7 @@ class AdminHome extends StatefulWidget {
 
 class _AdminHomeState extends State<AdminHome> {
   int _selectedIndex = 0;
-  Map<String, dynamic> stats = {
-    "selesai": "1",
-    "progress": "1",
-    "pending": "2",
-  };
+  Map<String, dynamic> stats = {"selesai": "0", "progress": "0", "pending": "0"};
 
   @override
   void initState() {
@@ -132,7 +130,6 @@ class _AdminHomeState extends State<AdminHome> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // --- BAGIAN STATUS PEKERJAAN HARI INI (SAMA PERSIS GAMBAR) ---
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -191,7 +188,6 @@ class _AdminHomeState extends State<AdminHome> {
 
         const SizedBox(height: 25),
 
-        // --- BAGIAN MENU NAVIGASI ---
         Container(
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
           decoration: BoxDecoration(
@@ -220,8 +216,19 @@ class _AdminHomeState extends State<AdminHome> {
                 "Monitoring\nProgress",
                 () => setState(() => _selectedIndex = 1),
               ),
-              _buildMenuIcon(Icons.people_outline, "Kelola\nTeknisi", () {}),
-              _buildMenuIcon(Icons.description_outlined, "Laporan", () {}),
+              _buildMenuIcon(Icons.people_outline, "Kelola\nTeknisi", () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (c) => const ManageTechScreen()),
+                );
+              }),
+              _buildMenuIcon(Icons.description_outlined, "Laporan", () {
+                // LOGIKA BARU: Menuju halaman Laporan PDF
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (c) => const ReportScreen()),
+                );
+              }),
             ],
           ),
         ),
@@ -233,7 +240,6 @@ class _AdminHomeState extends State<AdminHome> {
         ),
         const SizedBox(height: 15),
 
-        // --- BAGIAN PEMBERITAHUAN ---
         Container(
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
@@ -260,13 +266,8 @@ class _AdminHomeState extends State<AdminHome> {
                       style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      "Ada ${stats['pending']} tugas yang menunggu dikerjakan dan ${stats['progress']} tugas sedang dalam proses.",
+                      "Pantau terus beban kerja teknisi lapangan hari ini.",
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      "Hari ini, 6/1/2026",
-                      style: TextStyle(fontSize: 10, color: Colors.black26),
                     ),
                   ],
                 ),
