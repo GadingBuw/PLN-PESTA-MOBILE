@@ -4,7 +4,7 @@ import 'dart:convert';
 import '../main.dart';
 
 class AdminMonitoringScreen extends StatefulWidget {
-  final VoidCallback? onBack; // Parameter untuk fungsi kembali ke tab Beranda
+  final VoidCallback? onBack;
   const AdminMonitoringScreen({super.key, this.onBack});
 
   @override
@@ -25,9 +25,7 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
       final response = await http.get(
         Uri.parse("$baseUrl?action=get_monitoring"),
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      if (response.statusCode == 200) return jsonDecode(response.body);
       return [];
     } catch (e) {
       debugPrint("Gagal memuat monitoring: $e");
@@ -41,7 +39,6 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // --- HEADER BIRU ---
           Container(
             width: double.infinity,
             padding: const EdgeInsets.only(
@@ -56,9 +53,6 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
                 IconButton(
                   icon: const Icon(Icons.arrow_back, color: Colors.white),
                   onPressed: () {
-                    // LOGIKA BACK:
-                    // Jika ada fungsi onBack (dari tab AdminHome), jalankan.
-                    // Jika tidak (dibuka via Navigator.push), lakukan pop.
                     if (widget.onBack != null) {
                       widget.onBack!();
                     } else if (Navigator.canPop(context)) {
@@ -86,18 +80,13 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
               ],
             ),
           ),
-
-          // --- DAFTAR TEKNISI ---
           Expanded(
             child: FutureBuilder<List<dynamic>>(
               future: _monitoringFuture,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting)
                   return const Center(child: CircularProgressIndicator());
-                }
-
                 final listData = snapshot.data ?? [];
-
                 return RefreshIndicator(
                   onRefresh: () async => setState(() {
                     _monitoringFuture = fetchMonitoring();
@@ -118,7 +107,6 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
                         style: TextStyle(fontSize: 13, color: Colors.grey),
                       ),
                       const SizedBox(height: 20),
-
                       if (listData.isEmpty)
                         const Center(child: Text("Belum ada data penugasan."))
                       else
@@ -137,9 +125,8 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
   }
 
   Widget _buildTechnicianCard(Map<String, dynamic> data) {
-    // Pastikan data casting aman
     int selesai = int.tryParse(data['selesai'].toString()) ?? 0;
-    int progress = int.tryParse(data['progress'].toString()) ?? 0;
+    int terlambat = int.tryParse(data['terlambat'].toString()) ?? 0;
     int pending = int.tryParse(data['pending'].toString()) ?? 0;
     int total = int.tryParse(data['total_tugas'].toString()) ?? 0;
     double progressPercent = total > 0 ? selesai / total : 0.0;
@@ -203,9 +190,9 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
             children: [
               _buildStatBox("Selesai", selesai, Colors.green),
               const SizedBox(width: 8),
-              _buildStatBox("Progress", progress, Colors.blue),
+              _buildStatBox("Telat", terlambat, Colors.red),
               const SizedBox(width: 8),
-              _buildStatBox("Pending", pending, Colors.orange),
+              _buildStatBox("Antrian", pending, Colors.orange),
             ],
           ),
         ],

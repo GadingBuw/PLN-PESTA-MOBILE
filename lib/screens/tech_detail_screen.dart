@@ -68,13 +68,13 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    LatLng loc = LatLng(
-      double.tryParse(widget.taskData['latitude'].toString()) ?? -8.2045,
-      double.tryParse(widget.taskData['longitude'].toString()) ?? 111.0921,
-    );
     bool isCompleted = widget.taskData['status'] == 'Selesai';
     bool isBongkar = widget.taskData['status'].toString().contains(
       'Pembongkaran',
+    );
+    LatLng loc = LatLng(
+      double.tryParse(widget.taskData['latitude'].toString()) ?? -8.2045,
+      double.tryParse(widget.taskData['longitude'].toString()) ?? 111.0921,
     );
 
     return Scaffold(
@@ -90,11 +90,11 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Detail Penugasan",
+              "Eksekusi Penugasan",
               style: TextStyle(color: Colors.grey, fontSize: 11),
             ),
             Text(
-              widget.taskData['id_pelanggan'] ?? "",
+              "Agenda: ${widget.taskData['id_pelanggan']}",
               style: const TextStyle(
                 color: Colors.black,
                 fontSize: 14,
@@ -103,17 +103,10 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none, color: Colors.black),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // --- HEADER BIRU & STEPPER (Gambar f1bec9) ---
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -126,13 +119,11 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red,
+                      color: Colors.orange,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      isBongkar
-                          ? "FASE PEMBONGKARAN DAYA"
-                          : "FASE PEMASANGAN DAYA",
+                      isBongkar ? "FASE PEMBONGKARAN" : "FASE PEMASANGAN",
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
@@ -145,7 +136,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildStepItem(
-                        "Pemasangan",
+                        "Mulai",
                         widget.taskData['tgl_pasang'],
                         true,
                       ),
@@ -159,7 +150,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                         ),
                       ),
                       _buildStepItem(
-                        "Pembongkaran",
+                        "Selesai",
                         widget.taskData['tgl_bongkar'],
                         isBongkar,
                       ),
@@ -168,181 +159,149 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                 ],
               ),
             ),
-
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // --- KARTU INFORMASI PELANGGAN ---
-                  _buildSectionCard("Informasi Pelanggan", [
+                  _buildSectionCard("Informasi PESTA (Sesuai Dokumen)", [
+                    _buildInfoRow(
+                      Icons.assignment_outlined,
+                      "Nomor Agenda",
+                      widget.taskData['id_pelanggan'],
+                    ),
                     _buildInfoRow(
                       Icons.person_outline,
-                      "Nama Pelanggan",
+                      "Nama Pemohon",
                       widget.taskData['nama_pelanggan'],
                     ),
                     _buildInfoRow(
                       Icons.location_on_outlined,
-                      "Alamat",
+                      "Alamat Lokasi",
                       widget.taskData['alamat'],
                     ),
                     _buildInfoRow(
                       Icons.bolt,
-                      "Daya",
+                      "Daya Terpasang",
                       "${widget.taskData['daya']} VA",
                     ),
                   ]),
                   const SizedBox(height: 20),
-
-                  // --- KARTU PETA LOKASI ---
-                  Container(
-                    height: 220,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    padding: const EdgeInsets.all(15),
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(15),
-                            child: FlutterMap(
-                              options: MapOptions(
-                                initialCenter: loc,
-                                initialZoom: 15,
-                              ),
-                              children: [
-                                TileLayer(
-                                  urlTemplate:
-                                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                ),
-                                MarkerLayer(
-                                  markers: [
-                                    Marker(
-                                      point: loc,
-                                      width: 40,
-                                      height: 40,
-                                      child: const Icon(
-                                        Icons.location_on,
-                                        color: Colors.red,
-                                        size: 40,
-                                      ),
-                                    ),
-                                  ],
+                  _buildSectionCard("Lokasi Proyek", [
+                    SizedBox(
+                      height: 200,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: FlutterMap(
+                          options: MapOptions(
+                            initialCenter: loc,
+                            initialZoom: 15,
+                          ),
+                          children: [
+                            TileLayer(
+                              urlTemplate:
+                                  'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            ),
+                            MarkerLayer(
+                              markers: [
+                                Marker(
+                                  point: loc,
+                                  width: 40,
+                                  height: 40,
+                                  child: const Icon(
+                                    Icons.location_on,
+                                    color: Colors.red,
+                                    size: 40,
+                                  ),
                                 ),
                               ],
                             ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(height: 10),
-                        Text(
-                          "${loc.latitude}, ${loc.longitude}",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // --- AREA UPLOAD FOTO ---
-                  if (!isCompleted) ...[
-                    _buildSectionCard(
-                      isBongkar ? "Bukti Pembongkaran" : "Bukti Pemasangan",
-                      [
-                        const Text(
-                          "Unggah foto sebagai bukti penyelesaian tugas.",
-                          style: TextStyle(fontSize: 12, color: Colors.grey),
-                        ),
-                        const SizedBox(height: 15),
-                        GestureDetector(
-                          onTap: () async {
-                            final p = await ImagePicker().pickImage(
-                              source: ImageSource.camera,
-                              imageQuality: 40,
-                            );
-                            if (p != null) setState(() => _img = File(p.path));
-                          },
-                          child: Container(
-                            width: double.infinity,
-                            height: 180,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(15),
-                              border: Border.all(
-                                color: Colors.grey.shade300,
-                                style: BorderStyle.solid,
-                              ),
-                            ),
-                            child: _img == null
-                                ? const Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.cloud_upload_outlined,
-                                        size: 40,
-                                        color: Colors.grey,
-                                      ),
-                                      Text(
-                                        "Klik untuk unggah foto",
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                      Text(
-                                        "JPG, PNG (Maks. 5MB)",
-                                        style: TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 10,
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : ClipRRect(
-                                    borderRadius: BorderRadius.circular(15),
-                                    child: Image.file(_img!, fit: BoxFit.cover),
-                                  ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 25),
-
-                    // --- TOMBOL KONFIRMASI ---
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00C853),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                        ),
-                        onPressed: _loading ? null : _submit,
-                        icon: _loading
-                            ? const SizedBox.shrink()
-                            : const Icon(Icons.check_circle_outline),
-                        label: _loading
-                            ? const CircularProgressIndicator(
-                                color: Colors.white,
-                              )
-                            : Text(
-                                isBongkar
-                                    ? "Selesaikan Pembongkaran"
-                                    : "Selesaikan Pemasangan",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
                       ),
                     ),
-                  ],
-                  const SizedBox(height: 30),
+                    const SizedBox(height: 10),
+                    Center(
+                      child: Text(
+                        "Koordinat: ${loc.latitude}, ${loc.longitude}",
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                  if (!isCompleted)
+                    _buildSectionCard("Konfirmasi Penyelesaian", [
+                      const Text(
+                        "Ambil foto sebagai bukti pengerjaan lapangan.",
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 15),
+                      GestureDetector(
+                        onTap: () async {
+                          final p = await ImagePicker().pickImage(
+                            source: ImageSource.camera,
+                            imageQuality: 40,
+                          );
+                          if (p != null) setState(() => _img = File(p.path));
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          height: 180,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: _img == null
+                              ? const Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.camera_enhance_outlined,
+                                      size: 40,
+                                      color: Colors.grey,
+                                    ),
+                                    Text(
+                                      "Klik untuk Kamera",
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : ClipRRect(
+                                  borderRadius: BorderRadius.circular(15),
+                                  child: Image.file(_img!, fit: BoxFit.cover),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 25),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF00C853),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                          onPressed: _loading ? null : _submit,
+                          child: _loading
+                              ? const CircularProgressIndicator(
+                                  color: Colors.white,
+                                )
+                              : const Text(
+                                  "KONFIRMASI SELESAI",
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                        ),
+                      ),
+                    ]),
                 ],
               ),
             ),
@@ -352,85 +311,74 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  Widget _buildStepItem(String label, String? date, bool isActive) {
-    return Column(
+  Widget _buildStepItem(String label, String? date, bool isActive) => Column(
+    children: [
+      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+      Text(
+        date ?? "-",
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Icon(
+        Icons.check_circle,
+        color: isActive ? Colors.greenAccent : Colors.white24,
+        size: 20,
+      ),
+    ],
+  );
+  Widget _buildSectionCard(String title, List<Widget> children) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 10),
-        ),
-        Text(
-          date ?? "-",
+          title,
           style: const TextStyle(
-            color: Colors.white,
-            fontSize: 10,
             fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: Colors.blue,
           ),
         ),
-        const SizedBox(height: 8),
-        Icon(
-          Icons.check_circle,
-          color: isActive ? Colors.greenAccent : Colors.white24,
-          size: 20,
+        const Divider(height: 25),
+        ...children,
+      ],
+    ),
+  );
+  Widget _buildInfoRow(IconData icon, String label, String? value) => Padding(
+    padding: const EdgeInsets.only(bottom: 15),
+    child: Row(
+      children: [
+        Icon(icon, size: 20, color: Colors.blue),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(color: Colors.grey, fontSize: 11),
+              ),
+              Text(
+                value ?? "-",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSectionCard(String title, List<Widget> children) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          ),
-          const Divider(height: 25),
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String label, String? value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: Colors.blue.withOpacity(0.1),
-            radius: 18,
-            child: Icon(icon, size: 18, color: Colors.blue),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: const TextStyle(color: Colors.grey, fontSize: 11),
-                ),
-                Text(
-                  value ?? "-",
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    ),
+  );
 }

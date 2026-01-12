@@ -19,10 +19,10 @@ class _TechHomeState extends State<TechHome> {
   int _currentIndex = 0;
   late Future<List<dynamic>> _taskFuture;
 
-  // Variabel statistik dinamis dari API
   int pending = 0;
   int progress = 0;
   int selesai = 0;
+  int terlambat = 0;
 
   @override
   void initState() {
@@ -51,11 +51,20 @@ class _TechHomeState extends State<TechHome> {
   void _calculateStats(List<dynamic> tasks) {
     if (mounted) {
       setState(() {
+        terlambat = tasks.where((t) => t['is_telat'].toString() == "1").length;
         pending = tasks
-            .where((t) => t['status'] == 'Menunggu Pemasangan')
+            .where(
+              (t) =>
+                  t['status'] == 'Menunggu Pemasangan' &&
+                  t['is_telat'].toString() == "0",
+            )
             .length;
         progress = tasks
-            .where((t) => t['status'] == 'Menunggu Pembongkaran')
+            .where(
+              (t) =>
+                  t['status'] == 'Menunggu Pembongkaran' &&
+                  t['is_telat'].toString() == "0",
+            )
             .length;
         selesai = tasks.where((t) => t['status'] == 'Selesai').length;
       });
@@ -105,10 +114,6 @@ class _TechHomeState extends State<TechHome> {
                     color: Colors.black54,
                   ),
                 ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.more_vert, color: Colors.black54),
-                ),
               ],
             )
           : null,
@@ -143,7 +148,6 @@ class _TechHomeState extends State<TechHome> {
       }),
       child: ListView(
         children: [
-          // --- HEADER BIRU (PROFIL TEKNISI) ---
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
@@ -152,7 +156,7 @@ class _TechHomeState extends State<TechHome> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "PESTA MOBILE",
+                  "PESTA MOBILE - ULP PACITAN",
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 11,
@@ -170,7 +174,7 @@ class _TechHomeState extends State<TechHome> {
                     children: [
                       const CircleAvatar(
                         backgroundColor: Color(0xFF00C7E1),
-                        child: Icon(Icons.person, color: Colors.white),
+                        child: Icon(Icons.engineering, color: Colors.white),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -178,7 +182,7 @@ class _TechHomeState extends State<TechHome> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Text(
-                              "Teknisi PESTA",
+                              "Petugas Lapangan",
                               style: TextStyle(
                                 fontSize: 10,
                                 color: Colors.grey,
@@ -194,15 +198,14 @@ class _TechHomeState extends State<TechHome> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 10),
                       Column(
                         children: [
                           const Text(
-                            "Tugas Hari Ini",
+                            "Total Tugas",
                             style: TextStyle(fontSize: 10, color: Colors.grey),
                           ),
                           Text(
-                            pending.toString(),
+                            (pending + progress + terlambat).toString(),
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
@@ -217,8 +220,6 @@ class _TechHomeState extends State<TechHome> {
               ],
             ),
           ),
-
-          // --- KARTU STATUS PEKERJAAN (CYAN) ---
           Padding(
             padding: const EdgeInsets.all(15),
             child: Container(
@@ -227,79 +228,35 @@ class _TechHomeState extends State<TechHome> {
                 color: const Color(0xFF00C7E1),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Status Pekerjaan",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildStatBox(
-                        pending.toString(),
-                        "Pending",
-                        Icons.access_time,
-                      ),
-                      _buildStatBox(
-                        progress.toString(),
-                        "Progress",
-                        Icons.error_outline,
-                      ),
-                      _buildStatBox(
-                        selesai.toString(),
-                        "Selesai",
-                        Icons.check_circle_outline,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // --- MENU NAVIGASI (CARD PUTIH) ---
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 15),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _buildMenuItem(Icons.location_on, "Peta Lokasi"),
-                  _buildMenuItem(Icons.calendar_month, "Jadwal"),
-                  _buildMenuItem(Icons.description, "Laporan"),
+                  _buildStatBox(
+                    terlambat.toString(),
+                    "Terlambat",
+                    Icons.warning_amber,
+                  ),
+                  _buildStatBox(
+                    (pending + progress).toString(),
+                    "Pending",
+                    Icons.access_time,
+                  ),
+                  _buildStatBox(
+                    selesai.toString(),
+                    "Selesai",
+                    Icons.check_circle_outline,
+                  ),
                 ],
               ),
             ),
           ),
-
           const Padding(
-            padding: EdgeInsets.fromLTRB(20, 25, 20, 10),
+            padding: EdgeInsets.fromLTRB(20, 10, 20, 10),
             child: Text(
-              "Tugas Hari Ini",
+              "Daftar Penugasan Aktif",
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
           ),
-
-          // --- DAFTAR TUGAS DARI API ---
           FutureBuilder<List<dynamic>>(
             future: _taskFuture,
             builder: (context, snapshot) {
@@ -308,7 +265,7 @@ class _TechHomeState extends State<TechHome> {
               if (!snapshot.hasData || snapshot.data!.isEmpty)
                 return const Center(
                   child: Padding(
-                    padding: EdgeInsets.all(20),
+                    padding: EdgeInsets.all(40),
                     child: Text("Tidak ada tugas hari ini."),
                   ),
                 );
@@ -324,63 +281,29 @@ class _TechHomeState extends State<TechHome> {
   }
 
   Widget _buildStatBox(String val, String label, IconData icon) {
-    return Container(
-      width: 90,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(15),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.white, size: 24),
-          const SizedBox(height: 4),
-          Text(
-            val,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 10),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMenuItem(IconData icon, String label) {
     return Column(
       children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF00C7E1),
-            borderRadius: BorderRadius.circular(15),
-          ),
-          child: Icon(icon, color: Colors.white, size: 26),
-        ),
-        const SizedBox(height: 8),
+        Icon(icon, color: Colors.white, size: 24),
+        const SizedBox(height: 4),
         Text(
-          label,
+          val,
           style: const TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: Colors.black54,
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
         ),
+        Text(label, style: const TextStyle(color: Colors.white, fontSize: 10)),
       ],
     );
   }
 
   Widget _buildTaskCard(Map t) {
-    bool isBongkar =
-        t['status'].toString().toLowerCase().contains('bongkar') ||
-        t['status'].toString().toLowerCase().contains('pembongkaran');
-    Color themeColor = isBongkar ? Colors.red : Colors.green;
+    bool isTelat = t['is_telat'].toString() == "1";
+    bool isBongkar = t['status'].toString().toLowerCase().contains('bongkar');
+    Color themeColor = isTelat
+        ? Colors.red
+        : (isBongkar ? Colors.orange : Colors.green);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
@@ -417,40 +340,33 @@ class _TechHomeState extends State<TechHome> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: themeColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            isBongkar ? "PEMBONGKARAN" : "PEMASANGAN",
-                            style: TextStyle(
-                              color: themeColor,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: themeColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        isTelat
+                            ? "TERLAMBAT"
+                            : (isBongkar ? "PEMBONGKARAN" : "PEMASANGAN"),
+                        style: TextStyle(
+                          color: themeColor,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          t['id_pelanggan'] ?? "",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                    const Icon(
-                      Icons.arrow_forward_ios,
-                      size: 12,
-                      color: Colors.grey,
+                    Text(
+                      "Agenda: ${t['id_pelanggan']}",
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
@@ -486,78 +402,32 @@ class _TechHomeState extends State<TechHome> {
                 ),
                 const SizedBox(height: 10),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Icon(Icons.bolt, size: 14, color: Colors.grey),
-                    const SizedBox(width: 4),
-                    const Text(
-                      "Daya:",
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    Row(
+                      children: [
+                        const Icon(Icons.bolt, size: 14, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Text(
+                          "${t['daya']} VA",
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 5),
                     Text(
-                      "${t['daya']} VA",
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                      "Jadwal: ${isBongkar ? t['tgl_bongkar'] : t['tgl_pasang']}",
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isTelat ? Colors.red : Colors.black54,
+                        fontWeight: isTelat
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                // Visual Timeline
-                Row(
-                  children: [
-                    Text(
-                      "Pasang: ${t['tgl_pasang'].toString().split('-').last}",
-                      style: const TextStyle(fontSize: 10, color: Colors.blue),
-                    ),
-                    Expanded(
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 10),
-                        height: 3,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                        child: FractionallySizedBox(
-                          alignment: Alignment.centerLeft,
-                          widthFactor: isBongkar ? 1.0 : 0.4,
-                          child: Container(color: themeColor),
-                        ),
-                      ),
-                    ),
-                    Text(
-                      "Bongkar: ${t['tgl_bongkar'].toString().split('-').last}",
-                      style: const TextStyle(fontSize: 10, color: Colors.grey),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.orange.shade100),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.access_time,
-                        color: Colors.orange,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        t['status'] ?? "",
-                        style: const TextStyle(
-                          color: Colors.orange,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
