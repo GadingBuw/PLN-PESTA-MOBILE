@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart'; // Import ini wajib
 import 'dart:convert';
 import '../models/user_model.dart';
 import '../main.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -29,12 +31,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        setState(() {
-          totalSelesai = data['total_selesai'].toString();
-        });
+        if (mounted) {
+          setState(() {
+            totalSelesai = data['total_selesai'].toString();
+          });
+        }
       }
     } catch (e) {
       debugPrint("Gagal load statistik: $e");
+    }
+  }
+
+  // FUNGSI LOGOUT UNTUK MENGHAPUS SESI
+  Future<void> _handleLogout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // Menghapus data session agar tidak terjadi auto-login saat buka aplikasi
+      await prefs.remove('user_session');
+
+      if (mounted) {
+        // Kembali ke halaman Login dan bersihkan semua history halaman
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (c) => const LoginScreen()),
+          (r) => false,
+        );
+      }
+    } catch (e) {
+      debugPrint("Error saat logout: $e");
     }
   }
 
@@ -44,12 +68,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: const Color(0xFFF5F5F5),
       body: Column(
         children: [
-          // Header Profil (Dinamis sesuai User)
+          // Header Profil
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFF00549B), Color(0xFF00CCFF)]),
+              gradient: LinearGradient(
+                colors: [Color(0xFF00549B), Color(0xFF00CCFF)],
+              ),
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(30),
                 bottomRight: Radius.circular(30),
@@ -64,8 +90,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 15),
                 Text(
-                  widget.user.nama.toUpperCase(), // Menampilkan Nama asli dari model
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  widget.user.nama.toUpperCase(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                   textAlign: TextAlign.center,
                 ),
                 Text(
@@ -78,22 +108,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 20),
 
-          // Card Identitas (Dinamis sesuai User)
+          // Card Identitas
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("INFORMASI AKUN", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                    const Text(
+                      "INFORMASI AKUN",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blueGrey,
+                      ),
+                    ),
                     const Divider(),
-                    _buildInfoRow(Icons.badge, "Nama Lengkap", widget.user.nama),
-                    _buildInfoRow(Icons.numbers, "NIM / ID Karyawan", widget.user.nim),
-                    _buildInfoRow(Icons.security, "Hak Akses", widget.user.role.toUpperCase()),
+                    _buildInfoRow(
+                      Icons.badge,
+                      "Nama Lengkap",
+                      widget.user.nama,
+                    ),
+                    _buildInfoRow(
+                      Icons.numbers,
+                      "NIM / ID Karyawan",
+                      widget.user.nim,
+                    ),
+                    _buildInfoRow(
+                      Icons.security,
+                      "Hak Akses",
+                      widget.user.role.toUpperCase(),
+                    ),
                   ],
                 ),
               ),
@@ -102,23 +152,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 10),
 
-          // Card Statistik Kerja (Dinamis dari API)
+          // Card Statistik Kerja
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Card(
               elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
               child: ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
                   child: const Icon(Icons.check_circle, color: Colors.green),
                 ),
-                title: const Text("Pekerjaan Selesai", style: TextStyle(fontSize: 14)),
-                subtitle: const Text("Bulan ini", style: TextStyle(fontSize: 12)),
+                title: const Text(
+                  "Pekerjaan Selesai",
+                  style: TextStyle(fontSize: 14),
+                ),
+                subtitle: const Text(
+                  "Bulan ini",
+                  style: TextStyle(fontSize: 12),
+                ),
                 trailing: Text(
                   totalSelesai,
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green),
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
                 ),
               ),
             ),
@@ -126,7 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const Spacer(),
 
-          // Tombol Logout
+          // Tombol Logout yang diperbaiki
           Padding(
             padding: const EdgeInsets.all(20),
             child: SizedBox(
@@ -136,19 +201,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.redAccent,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                onPressed: () {
-                  // Kembali ke halaman Login dan hapus semua history navigasi
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (c) => const LoginScreen()),
-                    (r) => false,
-                  );
-                },
+                onPressed: _handleLogout, // Memanggil fungsi hapus session
                 icon: const Icon(Icons.power_settings_new),
-                label: const Text("LOGOUT", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                label: const Text(
+                  "LOGOUT",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
               ),
             ),
           ),
@@ -169,8 +234,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
               ],
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../main.dart';
 import '../models/user_model.dart';
+import '../services/notification_service.dart'; // Import service notifikasi
 import 'tech_detail_screen.dart';
 import 'tech_history_screen.dart';
 import 'profile_screen.dart';
@@ -40,6 +41,12 @@ class _TechHomeState extends State<TechHome> {
       if (response.statusCode == 200) {
         List<dynamic> data = jsonDecode(response.body);
         _calculateStats(data);
+
+        // LOGIKA NOTIFIKASI: Daftarkan jadwal pengingat untuk tiap tugas secara offline
+        for (var task in data) {
+          NotificationService.showInstantNotification(task);
+        }
+
         return data;
       }
       throw "Gagal memuat data";
