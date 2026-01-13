@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart'; // Tambahkan ini
 import 'dart:convert';
 import '../models/user_model.dart';
 import '../main.dart';
+import 'login_screen.dart'; // IMPORT INI YANG HILANG
 
 class ProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -23,7 +25,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadStats() async {
     try {
-      // Mengambil statistik berdasarkan username yang sedang login
       final response = await http.get(
         Uri.parse("$baseUrl?action=get_stats&teknisi=${widget.user.username}"),
       );
@@ -38,13 +39,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // FUNGSI LOGOUT UNTUK MENGHAPUS SESSION
+  void _handleLogout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('user_session'); // Hapus session agar tidak auto-login lagi
+
+    if (!mounted) return;
+
+    // Kembali ke halaman Login dan hapus semua history navigasi
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (c) => const LoginScreen()),
+      (r) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
       body: Column(
         children: [
-          // Header Profil (Dinamis sesuai User)
+          // Header Profil
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
@@ -64,7 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 15),
                 Text(
-                  widget.user.nama.toUpperCase(), // Menampilkan Nama asli dari model
+                  widget.user.nama.toUpperCase(),
                   style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
@@ -78,7 +94,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 20),
 
-          // Card Identitas (Dinamis sesuai User)
+          // Card Identitas
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Card(
@@ -102,7 +118,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
           const SizedBox(height: 10),
 
-          // Card Statistik Kerja (Dinamis dari API)
+          // Card Statistik Kerja
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Card(
@@ -139,14 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 0,
                 ),
-                onPressed: () {
-                  // Kembali ke halaman Login dan hapus semua history navigasi
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (c) => const LoginScreen()),
-                    (r) => false,
-                  );
-                },
+                onPressed: _handleLogout, // Panggil fungsi logout yang baru
                 icon: const Icon(Icons.power_settings_new),
                 label: const Text("LOGOUT", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
               ),

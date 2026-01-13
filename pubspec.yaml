@@ -12,11 +12,12 @@ dependencies:
   http: ^1.2.1
   image_picker: ^1.1.2
   intl: ^0.19.0
-  flutter_map: ^6.1.0        # Library Peta OSM
-  latlong2: ^0.9.1           # Objek koordinat
-  geocoding: ^3.0.0          # Mencari koordinat dari alamat
-  pdf: ^3.10.7      # Tambahkan ini
-  printing: ^5.11.1 # Tambahkan ini
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+  geocoding: ^3.0.0
+  pdf: ^3.10.7
+  printing: ^5.11.1
+  shared_preferences: ^2.2.2 # Tambahkan ini untuk session
 
 dev_dependencies:
   flutter_test:
