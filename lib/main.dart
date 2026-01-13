@@ -3,11 +3,10 @@ import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:intl/date_symbol_data_local.dart'; // Import untuk Locale
+import 'package:intl/date_symbol_data_local.dart';
 import 'services/notification_service.dart';
 import 'screens/login_screen.dart';
 
-// Ganti IP sesuai server Anda
 final String baseUrl = "http://10.5.224.192/pesta_api/index.php";
 
 @pragma('vm:entry-point')
@@ -26,8 +25,33 @@ void callbackDispatcher() {
           List data = jsonDecode(response.body);
           if (data.isNotEmpty) {
             await NotificationService.initializeNotification();
+
+            DateTime now = DateTime.now();
+            String todayStr =
+                "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+
             for (var t in data) {
-              await NotificationService.showInstantNotification(t);
+              String status = t['status'] ?? '';
+              String tglPasang = t['tgl_pasang']?.toString() ?? '';
+              String tglBongkar = t['tgl_bongkar']?.toString() ?? '';
+
+              // LOGIKA FILTER SANGAT KETAT
+              bool isJadwalPasangHariIni =
+                  (status == 'Menunggu Pemasangan' && tglPasang == todayStr);
+              bool isJadwalBongkarHariIni =
+                  (status == 'Menunggu Pembongkaran' && tglBongkar == todayStr);
+
+              if (isJadwalPasangHariIni || isJadwalBongkarHariIni) {
+                // Tambahan: Cek agar tidak mengirim notifikasi yang sama berkali-kali dalam 15 menit
+                String lastNotifKey = "last_notif_${t['id']}";
+                String? lastSent = prefs.getString(lastNotifKey);
+
+                if (lastSent != todayStr) {
+                  await NotificationService.showInstantNotification(t);
+                  // Simpan tanda bahwa tugas ini sudah dikirim notifikasinya hari ini
+                  await prefs.setString(lastNotifKey, todayStr);
+                }
+              }
             }
           }
         }
@@ -41,21 +65,23 @@ void callbackDispatcher() {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 1. WAJIB: Inisialisasi format tanggal lokal Indonesia untuk PDF
   await initializeDateFormatting('id_ID', null);
-
-  // 2. Inisialisasi Notifikasi
   await NotificationService.initializeNotification();
 
-  // 3. Inisialisasi Workmanager (Gunakan versi ^0.10.0)
+  // 1. Inisialisasi Workmanager
   await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
 
+  // 2. BERSIHKAN SEMUA TASK LAMA (Penting!)
+  await Workmanager().cancelAll();
+
+  // 3. DAFTARKAN ULANG DENGAN DELAY 10 DETIK
+  // Gunakan registerOneOffTask dulu untuk testing segera, atau Periodic untuk rutin
   await Workmanager().registerPeriodicTask(
-    "pesta_task_check",
+    "pesta_task_check_unique_id", // Gunakan ID baru agar tidak bentrok dengan cache lama
     "fetchDataTask",
     frequency: const Duration(minutes: 15),
     constraints: Constraints(networkType: NetworkType.connected),
+    existingWorkPolicy: ExistingWorkPolicy.replace,
   );
 
   runApp(
