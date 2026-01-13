@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../main.dart';
+import 'admin_tech_history_detail.dart'; // Import file detail riwayat
 
 class AdminMonitoringScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -84,8 +85,9 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
             child: FutureBuilder<List<dynamic>>(
               future: _monitoringFuture,
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting)
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
+                }
                 final listData = snapshot.data ?? [];
                 return RefreshIndicator(
                   onRefresh: () async => setState(() {
@@ -103,7 +105,7 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
                         ),
                       ),
                       const Text(
-                        "Klik untuk melihat detail tugas teknisi",
+                        "Klik kartu teknisi untuk melihat riwayat tugas aktif",
                         style: TextStyle(fontSize: 13, color: Colors.grey),
                       ),
                       const SizedBox(height: 20),
@@ -126,76 +128,127 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
 
   Widget _buildTechnicianCard(Map<String, dynamic> data) {
     int selesai = int.tryParse(data['selesai'].toString()) ?? 0;
-    int terlambat = int.tryParse(data['terlambat'].toString()) ?? 0;
     int pending = int.tryParse(data['pending'].toString()) ?? 0;
     int total = int.tryParse(data['total_tugas'].toString()) ?? 0;
+    String statusKapasitas = data['kapasitas'] ?? "Tersedia";
+
+    // Hitung persentase pengerjaan
     double progressPercent = total > 0 ? selesai / total : 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.person_outline,
-                  color: Colors.blue,
-                  size: 28,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            // NAVIGASI: Ke halaman detail riwayat tugas aktif teknisi
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (c) => AdminTechHistoryDetail(
+                  username: data['teknisi'],
+                  nama: data['teknisi'],
                 ),
               ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(15),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Text(
-                      data['teknisi'] ?? "Tanpa Nama",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.person_outline,
+                        color: Colors.blue,
+                        size: 28,
                       ),
                     ),
-                    const Text(
-                      "Wilayah Kerja",
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            data['teknisi'] ?? "Tanpa Nama",
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          // LOGIKA PERBAIKAN: Status berubah warna sesuai kapasitas hari ini
+                          Text(
+                            statusKapasitas,
+                            style: TextStyle(
+                              color: statusKapasitas == "Jadwal Penuh"
+                                  ? Colors.red
+                                  : Colors.green,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.grey),
+                  ],
+                ),
+                const SizedBox(height: 15),
+                // Progress Bar
+                Stack(
+                  children: [
+                    Container(
+                      height: 8,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: progressPercent,
+                      child: Container(
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const Icon(Icons.chevron_right, color: Colors.grey),
-            ],
+                const SizedBox(height: 15),
+                Row(
+                  children: [
+                    _buildStatBox("Selesai", selesai, Colors.green),
+                    const SizedBox(width: 8),
+                    _buildStatBox("Antrian", pending, Colors.orange),
+                  ],
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 15),
-          LinearProgressIndicator(
-            value: progressPercent,
-            minHeight: 8,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
-          ),
-          const SizedBox(height: 15),
-          Row(
-            children: [
-              _buildStatBox("Selesai", selesai, Colors.green),
-              const SizedBox(width: 8),
-              _buildStatBox("Telat", terlambat, Colors.red),
-              const SizedBox(width: 8),
-              _buildStatBox("Antrian", pending, Colors.orange),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }

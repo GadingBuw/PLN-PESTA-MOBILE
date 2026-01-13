@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/user_model.dart';
 import '../main.dart';
@@ -7,7 +8,8 @@ import 'admin_screen.dart';
 import 'admin_monitoring_screen.dart';
 import 'profile_screen.dart';
 import 'manage_tech_screen.dart';
-import 'report_screen.dart'; // Menambahkan import untuk halaman laporan
+import 'report_screen.dart';
+import 'admin_notification_screen.dart';
 
 class AdminHome extends StatefulWidget {
   final UserModel user;
@@ -25,10 +27,109 @@ class _AdminHomeState extends State<AdminHome> {
     "pending": "0",
   };
 
+  List<dynamic> dynamicNotifs = [];
+  List<String> hiddenNotifIds = [];
+
   @override
   void initState() {
     super.initState();
-    _fetchStats();
+    _loadHiddenNotifications();
+    _refreshAllData();
+  }
+
+  // --- LOGIKA BARU: POP-UP DETAIL PEKERJAAN ---
+  void _showDetailDialog(Map<String, dynamic> n) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          "Detail Aktivitas",
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _itemInfo("Teknisi", n['teknisi']),
+            _itemInfo("Agenda", n['id_pelanggan']),
+            _itemInfo("Nama", n['nama_pelanggan']),
+            _itemInfo("Alamat", n['alamat'] ?? "-"),
+            _itemInfo("Daya", "${n['daya'] ?? '0'} VA"),
+            const Divider(),
+            _itemInfo("Tgl Pasang", n['tgl_pasang'] ?? "-"),
+            _itemInfo("Tgl Bongkar", n['tgl_bongkar'] ?? "-"),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(8),
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                "Status: ${n['status']}",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Tutup"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _itemInfo(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              color: Colors.grey,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          Text(value, style: const TextStyle(fontSize: 14)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loadHiddenNotifications() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      hiddenNotifIds =
+          prefs.getStringList('hidden_notifs_${widget.user.username}') ?? [];
+    });
+  }
+
+  Future<void> _hideNotificationPermanently(String idPelanggan) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      hiddenNotifIds.add(idPelanggan);
+    });
+    await prefs.setStringList(
+      'hidden_notifs_${widget.user.username}',
+      hiddenNotifIds,
+    );
+  }
+
+  Future<void> _refreshAllData() async {
+    await _fetchStats();
+    await _fetchNotifications();
   }
 
   Future<void> _fetchStats() async {
@@ -38,14 +139,24 @@ class _AdminHomeState extends State<AdminHome> {
       );
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = jsonDecode(response.body);
-        if (mounted) {
-          setState(() {
-            stats = data;
-          });
-        }
+        if (mounted) setState(() => stats = data);
       }
     } catch (e) {
-      debugPrint("Error Fetching Stats: $e");
+      debugPrint("Error Stats: $e");
+    }
+  }
+
+  Future<void> _fetchNotifications() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl?action=get_notifications"),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        if (mounted) setState(() => dynamicNotifs = data);
+      }
+    } catch (e) {
+      debugPrint("Error Notif: $e");
     }
   }
 
@@ -53,56 +164,7 @@ class _AdminHomeState extends State<AdminHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
-      appBar: _selectedIndex == 0
-          ? AppBar(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              leading: Padding(
-                padding: const EdgeInsets.all(10.0),
-                child: Image.network(
-                  'https://upload.wikimedia.org/wikipedia/commons/9/97/Logo_PLN.png',
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    decoration: BoxDecoration(
-                      color: Colors.yellow,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.bolt, color: Colors.red),
-                  ),
-                ),
-              ),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Selamat datang,",
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
-                  ),
-                  Text(
-                    widget.user.nama,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.notifications_none,
-                    color: Colors.black54,
-                  ),
-                ),
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.more_vert, color: Colors.black54),
-                ),
-                const SizedBox(width: 8),
-              ],
-            )
-          : null,
+      appBar: _selectedIndex == 0 ? _buildAppBar() : null,
       body: [
         _buildBeranda(),
         AdminMonitoringScreen(onBack: () => setState(() => _selectedIndex = 0)),
@@ -130,156 +192,233 @@ class _AdminHomeState extends State<AdminHome> {
     );
   }
 
-  Widget _buildBeranda() {
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF00C7E1),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Status Pekerjaan Hari Ini",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildStatBox(
-                      Icons.check_circle_outline,
-                      stats['selesai'].toString(),
-                      "Selesai",
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatBox(
-                      Icons.access_time,
-                      stats['progress'].toString(),
-                      "Progress",
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatBox(
-                      Icons.warning_amber_rounded,
-                      stats['pending'].toString(),
-                      "Pending",
-                    ),
-                  ),
-                ],
-              ),
-            ],
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      leading: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Image.network(
+          'https://upload.wikimedia.org/wikipedia/commons/9/97/Logo_PLN.png',
+          errorBuilder: (context, error, stackTrace) => Container(
+            decoration: BoxDecoration(
+              color: Colors.yellow,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Icon(Icons.bolt, color: Colors.red),
           ),
         ),
-
-        const SizedBox(height: 25),
-
-        Container(
-          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              ),
-            ],
+      ),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Selamat datang,",
+            style: TextStyle(fontSize: 12, color: Colors.grey),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildMenuIcon(Icons.add, "Input\nPengajuan", () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (c) => const AdminScreen()),
-                ).then((_) => _fetchStats());
-              }),
-              _buildMenuIcon(
-                Icons.bar_chart,
-                "Monitoring\nProgress",
-                () => setState(() => _selectedIndex = 1),
-              ),
-              _buildMenuIcon(Icons.people_outline, "Kelola\nTeknisi", () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (c) => const ManageTechScreen()),
-                );
-              }),
-              _buildMenuIcon(Icons.description_outlined, "Laporan", () {
-                // LOGIKA BARU: Menuju halaman Laporan PDF
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (c) => const ReportScreen()),
-                );
-              }),
-            ],
+          Text(
+            widget.user.nama,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
           ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          onPressed: _refreshAllData,
+          icon: const Icon(Icons.refresh, color: Colors.blue),
         ),
-
-        const SizedBox(height: 25),
-        const Text(
-          "Pemberitahuan",
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        const SizedBox(height: 15),
-
-        Container(
-          padding: const EdgeInsets.all(15),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.notifications_none, color: Colors.blue),
+        IconButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (c) => const AdminNotificationScreen(),
               ),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Update Status Tugas",
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      "Pantau terus beban kerja teknisi lapangan hari ini.",
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            ).then((_) => _refreshAllData());
+          },
+          icon: const Icon(Icons.notifications_none, color: Colors.black54),
         ),
+        const SizedBox(width: 8),
       ],
+    );
+  }
+
+  Widget _buildBeranda() {
+    return RefreshIndicator(
+      onRefresh: _refreshAllData,
+      child: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          _buildStatHeader(),
+          const SizedBox(height: 25),
+          _buildMenuGrid(),
+          const SizedBox(height: 25),
+          const Text(
+            "Pemberitahuan Terbaru",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 15),
+
+          Builder(
+            builder: (context) {
+              final visibleNotifs = dynamicNotifs
+                  .where(
+                    (n) =>
+                        !hiddenNotifIds.contains(n['id_pelanggan'].toString()),
+                  )
+                  .toList();
+
+              if (visibleNotifs.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text(
+                      "Belum ada aktivitas baru",
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                  ),
+                );
+              }
+
+              return Column(
+                children: visibleNotifs.map((n) {
+                  // --- PEMBUNGKUS INKWELL UNTUK KLIK DETAIL ---
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: InkWell(
+                      onTap: () =>
+                          _showDetailDialog(n), // Trigger pop-up detail
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.all(15),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.02),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.notifications_none,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 15),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "${n['teknisi']} ${n['aksi']}",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  Text(
+                                    "Agenda: ${n['id_pelanggan']} - ${n['nama_pelanggan']}",
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                size: 18,
+                                color: Colors.grey,
+                              ),
+                              onPressed: () => _hideNotificationPermanently(
+                                n['id_pelanggan'].toString(),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Widget StatHeader, StatBox, MenuGrid sama seperti sebelumnya...
+  Widget _buildStatHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00C7E1),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Status Pekerjaan Hari Ini",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatBox(
+                  Icons.check_circle_outline,
+                  stats['selesai'].toString(),
+                  "Selesai",
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatBox(
+                  Icons.access_time,
+                  stats['progress'].toString(),
+                  "Progress",
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatBox(
+                  Icons.warning_amber_rounded,
+                  stats['pending'].toString(),
+                  "Pending",
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -305,6 +444,56 @@ class _AdminHomeState extends State<AdminHome> {
           Text(
             label,
             style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuGrid() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildMenuIcon(Icons.add, "Input\nPengajuan", () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (c) => const AdminScreen()),
+            ).then((_) => _refreshAllData());
+          }),
+          _buildMenuIcon(
+            Icons.bar_chart,
+            "Monitoring\nProgress",
+            () => setState(() => _selectedIndex = 1),
+          ),
+          _buildMenuIcon(
+            Icons.people_outline,
+            "Kelola\nTeknisi",
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (c) => const ManageTechScreen()),
+            ),
+          ),
+          _buildMenuIcon(
+            Icons.description_outlined,
+            "Laporan",
+            () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (c) => const ReportScreen()),
+            ),
           ),
         ],
       ),

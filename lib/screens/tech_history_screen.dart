@@ -93,18 +93,7 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(15),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                ),
-              ),
+              Padding(padding: const EdgeInsets.all(15)),
               if (listData.isEmpty)
                 const Center(
                   child: Padding(

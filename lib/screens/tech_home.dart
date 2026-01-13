@@ -41,7 +41,7 @@ class _TechHomeState extends State<TechHome> {
       if (response.statusCode == 200) {
         List<dynamic> data = jsonDecode(response.body);
 
-        // 1. Hitung Statistik dari SEMUA data (termasuk yang telat)
+        // 1. Hitung Statistik dari SEMUA data
         _calculateStats(data);
 
         // 2. LOGIKA NOTIFIKASI: Hanya untuk tugas HARI INI
@@ -62,10 +62,8 @@ class _TechHomeState extends State<TechHome> {
   void _calculateStats(List<dynamic> tasks) {
     if (mounted) {
       setState(() {
-        // Terlambat: Tugas yang sudah lewat tanggalnya
         terlambat = tasks.where((t) => t['is_telat'].toString() == "1").length;
 
-        // Pending: Menunggu pasang dan belum telat
         pending = tasks
             .where(
               (t) =>
@@ -74,7 +72,6 @@ class _TechHomeState extends State<TechHome> {
             )
             .length;
 
-        // Progress: Menunggu bongkar dan belum telat
         progress = tasks
             .where(
               (t) =>
@@ -83,7 +80,6 @@ class _TechHomeState extends State<TechHome> {
             )
             .length;
 
-        // Selesai: Tugas yang sudah tuntas
         selesai = tasks.where((t) => t['status'] == 'Selesai').length;
       });
     }
@@ -161,13 +157,6 @@ class _TechHomeState extends State<TechHome> {
         children: [
           _buildBlueHeader(),
           _buildStatSection(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 10, 20, 10),
-            child: Text(
-              "Daftar Penugasan Aktif",
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-          ),
           FutureBuilder<List<dynamic>>(
             future: _taskFuture,
             builder: (context, snapshot) {
@@ -181,8 +170,10 @@ class _TechHomeState extends State<TechHome> {
                   ),
                 );
 
-              // FILTER UI: Tampilkan hanya tugas Hari Ini ATAU yang Terlambat
-              final displayTasks = snapshot.data!
+              // --- LOGIKA FILTER PEMISAH DATA ---
+
+              // 1. TUGAS AKTIF (Hari Ini ATAU Terlambat)
+              final activeTasks = snapshot.data!
                   .where(
                     (t) =>
                         t['is_hari_ini'].toString() == "1" ||
@@ -190,16 +181,69 @@ class _TechHomeState extends State<TechHome> {
                   )
                   .toList();
 
-              if (displayTasks.isEmpty)
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Text("Tugas hari ini sudah selesai."),
-                  ),
-                );
+              // 2. TUGAS AKAN DATANG (Bukan hari ini, bukan telat, dan belum selesai)
+              final futureTasks = snapshot.data!
+                  .where(
+                    (t) =>
+                        t['is_hari_ini'].toString() == "0" &&
+                        t['is_telat'].toString() == "0" &&
+                        t['status'] != 'Selesai',
+                  )
+                  .toList();
 
               return Column(
-                children: displayTasks.map((t) => _buildTaskCard(t)).toList(),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // BAGIAN AKTIF
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 10, 20, 10),
+                    child: Text(
+                      "Daftar Penugasan Aktif",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  if (activeTasks.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text(
+                          "Tidak ada tugas aktif hari ini.",
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    ...activeTasks.map((t) => _buildTaskCard(t)).toList(),
+
+                  const SizedBox(height: 15),
+
+                  // BAGIAN AKAN DATANG
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 10, 20, 10),
+                    child: Text(
+                      "Penugasan Akan Datang",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                  if (futureTasks.isEmpty)
+                    const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20),
+                        child: Text(
+                          "Belum ada tugas terjadwal selanjutnya.",
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
+                    )
+                  else
+                    ...futureTasks.map((t) => _buildTaskCard(t)).toList(),
+                ],
               );
             },
           ),
@@ -334,10 +378,15 @@ class _TechHomeState extends State<TechHome> {
 
   Widget _buildTaskCard(Map t) {
     bool isTelat = t['is_telat'].toString() == "1";
+    bool isHariIni = t['is_hari_ini'].toString() == "1";
     bool isBongkar = t['status'].toString().toLowerCase().contains('bongkar');
+
+    // Warna tema kartu: Merah jika telat, Biru jika pengerjaan normal, Abu-abu jika masa depan
     Color themeColor = isTelat
         ? Colors.red
-        : (isBongkar ? Colors.orange : Colors.green);
+        : (isHariIni
+              ? (isBongkar ? Colors.orange : Colors.green)
+              : Colors.blueGrey);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
@@ -386,7 +435,9 @@ class _TechHomeState extends State<TechHome> {
                       child: Text(
                         isTelat
                             ? "TERLAMBAT"
-                            : (isBongkar ? "PEMBONGKARAN" : "PEMASANGAN"),
+                            : (isHariIni
+                                  ? (isBongkar ? "PEMBONGKARAN" : "PEMASANGAN")
+                                  : "TERJADWAL"),
                         style: TextStyle(
                           color: themeColor,
                           fontSize: 9,
