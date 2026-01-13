@@ -15,64 +15,36 @@ class AdminScreen extends StatefulWidget {
 }
 
 class _AdminScreenState extends State<AdminScreen> {
-  final idPelCtrl = TextEditingController(); // Nomor Agenda/Register
-  final namaCtrl = TextEditingController(); // Nama Pemohon
-  final alamatCtrl = TextEditingController(); // Alamat Lokasi
-  final dayaCtrl = TextEditingController(); // Daya VA
+  final idPelCtrl = TextEditingController();
+  final namaCtrl = TextEditingController();
+  final alamatCtrl = TextEditingController();
+  final dayaCtrl = TextEditingController();
   final MapController _mapController = MapController();
 
   DateTime? tglP;
   DateTime? tglB;
-  LatLng _selectedLocation = const LatLng(
-    -8.2045,
-    111.0921,
-  ); // Default: Pacitan
+  LatLng _selectedLocation = const LatLng(-8.2045, 111.0921);
   String? selectedTeknisi;
-
   List<UserModel> availableTeknisi = [];
   bool isLoadingTeknisi = false;
 
-  // FUNGSI PENCARIAN ALAMAT (DIPERBAIKI)
   Future<void> _searchFromAddress() async {
-    if (alamatCtrl.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Isi alamat dulu!")));
-      return;
-    }
-
+    if (alamatCtrl.text.isEmpty) return;
     try {
-      // Menampilkan loading sederhana di bagian bawah
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Sedang mencari lokasi..."),
-          duration: Duration(seconds: 1),
-        ),
-      );
-
-      // Mencari koordinat dari teks alamat
       List<Location> locations = await locationFromAddress(alamatCtrl.text);
-
       if (locations.isNotEmpty) {
         setState(() {
           _selectedLocation = LatLng(
             locations.first.latitude,
             locations.first.longitude,
           );
-          // Menggerakkan peta ke lokasi yang ditemukan
           _mapController.move(_selectedLocation, 15.0);
         });
       }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            "Lokasi tidak ditemukan. Coba tambahkan nama kota (contoh: Arjosari Pacitan)",
-          ),
-          backgroundColor: Colors.orange,
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Lokasi tidak ditemukan!")));
     }
   }
 
@@ -81,19 +53,20 @@ class _AdminScreenState extends State<AdminScreen> {
       isLoadingTeknisi = true;
       selectedTeknisi = null;
     });
-
     try {
       String formattedDate = DateFormat('yyyy-MM-dd').format(date);
       final response = await http.get(
         Uri.parse("$baseUrl?action=get_busy_teknisi&tanggal=$formattedDate"),
       );
-
       if (response.statusCode == 200) {
         List<dynamic> busyUsernames = jsonDecode(response.body);
         setState(() {
-          availableTeknisi = listUser.where((u) {
-            return u.role == "teknisi" && !busyUsernames.contains(u.username);
-          }).toList();
+          availableTeknisi = listUser
+              .where(
+                (u) =>
+                    u.role == "teknisi" && !busyUsernames.contains(u.username),
+              )
+              .toList();
           isLoadingTeknisi = false;
         });
       }
@@ -109,7 +82,7 @@ class _AdminScreenState extends State<AdminScreen> {
         selectedTeknisi == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Lengkapi data penugasan!")));
+      ).showSnackBar(const SnackBar(content: Text("Lengkapi data!")));
       return;
     }
 
@@ -135,14 +108,25 @@ class _AdminScreenState extends State<AdminScreen> {
         },
       );
 
+      final result = jsonDecode(response.body);
       if (!mounted) return;
       Navigator.pop(context);
 
-      if (response.statusCode == 200) {
+      if (result['status'] == "success") {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Penugasan PESTA Berhasil Disimpan!")),
+          const SnackBar(
+            content: Text("Berhasil Ditugaskan!"),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message']),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) Navigator.pop(context);
@@ -155,12 +139,10 @@ class _AdminScreenState extends State<AdminScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text("Input Penugasan Rill"),
         backgroundColor: const Color(0xFF1A56F0),
         foregroundColor: Colors.white,
-        elevation: 0,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -181,28 +163,23 @@ class _AdminScreenState extends State<AdminScreen> {
           TextField(
             controller: namaCtrl,
             decoration: const InputDecoration(
-              labelText: "Nama Pemohon (Sesuai PDF)",
+              labelText: "Nama Pemohon",
               border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 15),
-
-          // TextField Alamat dengan tombol cari Aktif
           TextField(
             controller: alamatCtrl,
             decoration: InputDecoration(
-              labelText: "Alamat Lokasi Proyek",
+              labelText: "Alamat Lokasi",
               border: const OutlineInputBorder(),
               suffixIcon: IconButton(
-                icon: const Icon(Icons.search, color: Colors.blue),
-                onPressed: _searchFromAddress, // Memanggil fungsi cari
+                icon: const Icon(Icons.search),
+                onPressed: _searchFromAddress,
               ),
             ),
-            onSubmitted: (_) =>
-                _searchFromAddress(), // Cari juga saat tekan 'Enter' di keyboard
           ),
           const SizedBox(height: 15),
-
           TextField(
             controller: dayaCtrl,
             keyboardType: TextInputType.number,
@@ -213,24 +190,51 @@ class _AdminScreenState extends State<AdminScreen> {
             ),
           ),
           const SizedBox(height: 25),
-
           const Text(
             "PENJADWALAN",
             style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
           ),
           const SizedBox(height: 10),
-          _buildDatePicker("Mulai Pasang", tglP, (date) {
-            setState(() => tglP = date);
-            _filterTeknisi(date);
-          }, Colors.blue.shade50),
-          const SizedBox(height: 10),
-          _buildDatePicker(
-            "Tgl Bongkar",
-            tglB,
-            (date) => setState(() => tglB = date),
-            Colors.orange.shade50,
+          ListTile(
+            tileColor: Colors.blue.shade50,
+            title: Text(
+              tglP == null
+                  ? "Set Mulai Pasang"
+                  : DateFormat('dd-MM-yyyy').format(tglP!),
+            ),
+            trailing: const Icon(Icons.calendar_month),
+            onTap: () async {
+              DateTime? p = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now(),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(2030),
+              );
+              if (p != null) {
+                setState(() => tglP = p);
+                _filterTeknisi(p);
+              }
+            },
           ),
-
+          const SizedBox(height: 10),
+          ListTile(
+            tileColor: Colors.orange.shade50,
+            title: Text(
+              tglB == null
+                  ? "Set Tgl Bongkar"
+                  : DateFormat('dd-MM-yyyy').format(tglB!),
+            ),
+            trailing: const Icon(Icons.calendar_month),
+            onTap: () async {
+              DateTime? p = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now(),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(2030),
+              );
+              if (p != null) setState(() => tglB = p);
+            },
+          ),
           const SizedBox(height: 20),
           isLoadingTeknisi
               ? const LinearProgressIndicator()
@@ -250,7 +254,6 @@ class _AdminScreenState extends State<AdminScreen> {
                       .toList(),
                   onChanged: (val) => setState(() => selectedTeknisi = val),
                 ),
-
           const SizedBox(height: 30),
           const Text(
             "TITIK LOKASI PADA PETA",
@@ -298,9 +301,6 @@ class _AdminScreenState extends State<AdminScreen> {
               backgroundColor: const Color(0xFF1A56F0),
               foregroundColor: Colors.white,
               minimumSize: const Size(double.infinity, 55),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(15),
-              ),
             ),
             onPressed: _kirimData,
             child: const Text(
@@ -308,34 +308,8 @@ class _AdminScreenState extends State<AdminScreen> {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-          const SizedBox(height: 20),
         ],
       ),
-    );
-  }
-
-  Widget _buildDatePicker(
-    String label,
-    DateTime? value,
-    Function(DateTime) onSelect,
-    Color color,
-  ) {
-    return ListTile(
-      tileColor: color,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      title: Text(
-        value == null ? "Set $label" : DateFormat('dd-MM-yyyy').format(value),
-      ),
-      trailing: const Icon(Icons.calendar_month),
-      onTap: () async {
-        DateTime? picked = await showDatePicker(
-          context: context,
-          initialDate: DateTime.now(),
-          firstDate: DateTime.now(),
-          lastDate: DateTime(2030),
-        );
-        if (picked != null) onSelect(picked);
-      },
     );
   }
 }
