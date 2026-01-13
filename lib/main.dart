@@ -3,22 +3,21 @@ import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:intl/date_symbol_data_local.dart'; // Import untuk Locale
 import 'services/notification_service.dart';
 import 'screens/login_screen.dart';
 
-// URL API Anda (Sesuaikan IP Laptop Anda)
+// Ganti IP sesuai server Anda
 final String baseUrl = "http://10.5.224.192/pesta_api/index.php";
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
-    // Ambil session username dari memori HP
     final prefs = await SharedPreferences.getInstance();
     final String? username = prefs.getString('user_session');
 
     if (username != null) {
       try {
-        // Cek data ke server secara otomatis di background
         final response = await http.get(
           Uri.parse("$baseUrl?action=get_all_tasks&teknisi=$username"),
         );
@@ -26,7 +25,6 @@ void callbackDispatcher() {
         if (response.statusCode == 200) {
           List data = jsonDecode(response.body);
           if (data.isNotEmpty) {
-            // Jika ada data, langsung munculkan notifikasi
             await NotificationService.initializeNotification();
             for (var t in data) {
               await NotificationService.showInstantNotification(t);
@@ -34,7 +32,7 @@ void callbackDispatcher() {
           }
         }
       } catch (e) {
-        print("Background Error: $e");
+        debugPrint("Background Fetch Error: $e");
       }
     }
     return Future.value(true);
@@ -44,16 +42,18 @@ void callbackDispatcher() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Siapkan Notifikasi
+  // 1. WAJIB: Inisialisasi format tanggal lokal Indonesia untuk PDF
+  await initializeDateFormatting('id_ID', null);
+
+  // 2. Inisialisasi Notifikasi
   await NotificationService.initializeNotification();
 
-  // 2. Siapkan Workmanager (Background Process)
+  // 3. Inisialisasi Workmanager (Gunakan versi ^0.10.0)
   await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
 
-  // Daftarkan tugas rutin (Setiap 15 menit)
   await Workmanager().registerPeriodicTask(
-    "1",
-    "checkPestaTasks",
+    "pesta_task_check",
+    "fetchDataTask",
     frequency: const Duration(minutes: 15),
     constraints: Constraints(networkType: NetworkType.connected),
   );

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
-import '../main.dart';
 import 'admin_home.dart';
 import 'tech_home.dart';
 

@@ -19,43 +19,104 @@ class _ReportScreenState extends State<ReportScreen> {
   String selectedYear = DateFormat('yyyy').format(DateTime.now());
   bool isGenerating = false;
 
-  final List<String> months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+  final List<Map<String, String>> months = [
+    {"value": "01", "label": "Januari"},
+    {"value": "02", "label": "Februari"},
+    {"value": "03", "label": "Maret"},
+    {"value": "04", "label": "April"},
+    {"value": "05", "label": "Mei"},
+    {"value": "06", "label": "Juni"},
+    {"value": "07", "label": "Juli"},
+    {"value": "08", "label": "Agustus"},
+    {"value": "09", "label": "September"},
+    {"value": "10", "label": "Oktober"},
+    {"value": "11", "label": "November"},
+    {"value": "12", "label": "Desember"},
+  ];
+
   final List<String> years = ["2024", "2025", "2026", "2027"];
 
   Future<void> _generatePdf() async {
     setState(() => isGenerating = true);
     try {
       final response = await http.get(
-        Uri.parse("$baseUrl?action=get_report&bulan=$selectedMonth&tahun=$selectedYear"),
+        Uri.parse(
+          "$baseUrl?action=get_report&bulan=$selectedMonth&tahun=$selectedYear",
+        ),
       );
 
-      if (response.statusCode == 200) {
-        List<dynamic> data = jsonDecode(response.body);
-        if (data.isEmpty) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tidak ada data periode ini.")));
-          setState(() => isGenerating = false); return;
-        }
+      if (response.body.isEmpty || response.statusCode != 200)
+        throw "Error koneksi/data.";
 
-        final pdf = pw.Document();
-        pdf.addPage(
-          pw.MultiPage(
-            pageFormat: PdfPageFormat.a4.landscape,
-            margin: const pw.EdgeInsets.all(32),
-            build: (pw.Context context) {
-              return [
-                pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                  pw.Text("PT PLN (PERSERO) - ULP PACITAN", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14)),
-                  pw.Text("LAPORAN BULANAN PENUGASAN PESTA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                  pw.Text("Periode: $selectedMonth / $selectedYear", style: pw.TextStyle(fontSize: 10)),
-                  pw.Divider(thickness: 2),
-                ]),
-                pw.SizedBox(height: 15),
-                pw.TableHelper.fromTextArray(
-                  headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.white),
-                  headerDecoration: const pw.BoxDecoration(color: PdfColors.blue800),
-                  cellStyle: const pw.TextStyle(fontSize: 8),
-                  headers: ['No', 'No. Agenda', 'Nama Pelanggan', 'Alamat Lokasi', 'Daya', 'Pasang', 'Bongkar', 'Teknisi', 'Status'],
-                  data: List<List<dynamic>>.generate(data.length, (index) => [
+      List<dynamic> data = jsonDecode(response.body);
+      if (data.isEmpty) {
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text("Data Kosong")));
+        setState(() => isGenerating = false);
+        return;
+      }
+
+      String monthLabel = months.firstWhere(
+        (m) => m['value'] == selectedMonth,
+      )['label']!;
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4.landscape,
+          margin: const pw.EdgeInsets.all(30),
+          build: (pw.Context context) {
+            return [
+              // Header Ringkas
+              pw.Text(
+                "PT PLN (PERSERO) - ULP PACITAN",
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+              pw.Text(
+                "LAPORAN BULANAN PENUGASAN PESTA",
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 10,
+                ),
+              ),
+              pw.Text(
+                "Periode: $monthLabel / $selectedYear",
+                style: pw.TextStyle(fontSize: 9),
+              ),
+              pw.SizedBox(height: 5),
+              pw.Divider(thickness: 1),
+              pw.SizedBox(height: 8),
+
+              // Tabel
+              pw.TableHelper.fromTextArray(
+                headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 8,
+                  color: PdfColors.white,
+                ),
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.blue800,
+                ),
+                cellStyle: const pw.TextStyle(fontSize: 7.5),
+                headers: [
+                  'No',
+                  'ID Pel',
+                  'Nama Pelanggan',
+                  'Alamat',
+                  'Daya',
+                  'Pasang',
+                  'Bongkar',
+                  'Teknisi',
+                  'Status',
+                ],
+                data: List<List<dynamic>>.generate(
+                  data.length,
+                  (index) => [
                     index + 1,
                     data[index]['id_pelanggan'],
                     data[index]['nama_pelanggan'],
@@ -65,23 +126,59 @@ class _ReportScreenState extends State<ReportScreen> {
                     data[index]['tgl_bongkar'],
                     data[index]['teknisi'],
                     data[index]['status'],
-                  ]),
+                  ],
                 ),
-                pw.SizedBox(height: 40),
-                pw.Align(alignment: pw.Alignment.centerRight, child: pw.Column(children: [
-                  pw.Text("Pacitan, ${DateFormat('dd MMMM yyyy').format(DateTime.now())}", style: const pw.TextStyle(fontSize: 9)),
-                  pw.SizedBox(height: 50),
-                  pw.Text("__________________________", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  pw.Text("Admin PESTA Mobile", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                ]))
-              ];
-            },
-          ),
-        );
-        await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
-      }
+              ),
+
+              // TANDA TANGAN (Dinaikkan mepet ke tabel)
+              pw.SizedBox(height: 10), // Jarak pendek agar tidak pindah halaman
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Text(
+                        "Pacitan, ${DateFormat('dd MMMM yyyy', 'id_ID').format(DateTime.now())}",
+                        style: pw.TextStyle(fontSize: 9),
+                      ),
+                      pw.Text(
+                        "Admin PESTA Mobile",
+                        style: pw.TextStyle(fontSize: 9),
+                      ),
+                      pw.SizedBox(height: 30), // Ruang TTD dipendekkan
+                      pw.Container(
+                        width: 130,
+                        decoration: const pw.BoxDecoration(
+                          border: pw.Border(bottom: pw.BorderSide(width: 1)),
+                        ),
+                      ),
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        "PLN ULP PACITAN",
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ];
+          },
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (format) async => pdf.save(),
+        name: 'Laporan_$selectedMonth.pdf',
+      );
     } catch (e) {
-      debugPrint("PDF Error: $e");
+      if (mounted)
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text("Gagal: $e")));
     } finally {
       if (mounted) setState(() => isGenerating = false);
     }
@@ -90,41 +187,65 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
-      appBar: AppBar(title: const Text("Laporan Bulanan PDF"), backgroundColor: const Color(0xFF1A56F0), foregroundColor: Colors.white, elevation: 0),
+      appBar: AppBar(
+        title: const Text("Cetak Laporan PDF"),
+        backgroundColor: const Color(0xFF1A56F0),
+        foregroundColor: Colors.white,
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(25.0),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Icon(Icons.picture_as_pdf, size: 60, color: Colors.redAccent),
-          const SizedBox(height: 20),
-          const Text("Cetak Laporan Penugasan", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
-          const Text("Silakan pilih periode laporan penugasan rill.", style: TextStyle(color: Colors.grey, fontSize: 13)),
-          const SizedBox(height: 40),
-          DropdownButtonFormField<String>(
-            value: selectedMonth,
-            decoration: const InputDecoration(labelText: "Pilih Bulan", border: OutlineInputBorder()),
-            items: months.map((m) => DropdownMenuItem(value: m, child: Text("Bulan $m"))).toList(),
-            onChanged: (val) => setState(() => selectedMonth = val!),
-          ),
-          const SizedBox(height: 20),
-          DropdownButtonFormField<String>(
-            value: selectedYear,
-            decoration: const InputDecoration(labelText: "Pilih Tahun", border: OutlineInputBorder()),
-            items: years.map((y) => DropdownMenuItem(value: y, child: Text("Tahun $y"))).toList(),
-            onChanged: (val) => setState(() => selectedYear = val!),
-          ),
-          const SizedBox(height: 50),
-          SizedBox(
-            width: double.infinity,
-            height: 60,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1A56F0), foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-              onPressed: isGenerating ? null : _generatePdf,
-              icon: isGenerating ? const CircularProgressIndicator(color: Colors.white) : const Icon(Icons.download),
-              label: const Text("GENERATE & DOWNLOAD PDF", style: TextStyle(fontWeight: FontWeight.bold)),
+        padding: const EdgeInsets.all(25),
+        child: Column(
+          children: [
+            const Icon(Icons.picture_as_pdf, size: 50, color: Colors.red),
+            const SizedBox(height: 30),
+            DropdownButtonFormField<String>(
+              value: selectedMonth,
+              decoration: const InputDecoration(
+                labelText: "Bulan",
+                border: OutlineInputBorder(),
+              ),
+              items: months
+                  .map(
+                    (m) => DropdownMenuItem(
+                      value: m['value'],
+                      child: Text(m['label']!),
+                    ),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => selectedMonth = v!),
             ),
-          ),
-        ]),
+            const SizedBox(height: 15),
+            DropdownButtonFormField<String>(
+              value: selectedYear,
+              decoration: const InputDecoration(
+                labelText: "Tahun",
+                border: OutlineInputBorder(),
+              ),
+              items: years
+                  .map(
+                    (y) => DropdownMenuItem(value: y, child: Text("Tahun $y")),
+                  )
+                  .toList(),
+              onChanged: (v) => setState(() => selectedYear = v!),
+            ),
+            const SizedBox(height: 40),
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1A56F0),
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: isGenerating ? null : _generatePdf,
+                icon: isGenerating
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Icon(Icons.print),
+                label: const Text("GENERATE PDF"),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
