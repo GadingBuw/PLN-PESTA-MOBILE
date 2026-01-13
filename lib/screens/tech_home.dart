@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../main.dart';
 import '../models/user_model.dart';
-import '../services/notification_service.dart'; // Import service notifikasi
+import '../services/notification_service.dart';
 import 'tech_detail_screen.dart';
 import 'tech_history_screen.dart';
 import 'profile_screen.dart';
@@ -40,11 +40,15 @@ class _TechHomeState extends State<TechHome> {
       );
       if (response.statusCode == 200) {
         List<dynamic> data = jsonDecode(response.body);
+
+        // 1. Hitung Statistik dari SEMUA data (termasuk yang telat)
         _calculateStats(data);
 
-        // LOGIKA NOTIFIKASI: Daftarkan jadwal pengingat untuk tiap tugas secara offline
+        // 2. LOGIKA NOTIFIKASI: Hanya untuk tugas HARI INI
         for (var task in data) {
-          NotificationService.showInstantNotification(task);
+          if (task['is_hari_ini'].toString() == "1") {
+            NotificationService.showInstantNotification(task);
+          }
         }
 
         return data;
@@ -58,7 +62,10 @@ class _TechHomeState extends State<TechHome> {
   void _calculateStats(List<dynamic> tasks) {
     if (mounted) {
       setState(() {
+        // Terlambat: Tugas yang sudah lewat tanggalnya
         terlambat = tasks.where((t) => t['is_telat'].toString() == "1").length;
+
+        // Pending: Menunggu pasang dan belum telat
         pending = tasks
             .where(
               (t) =>
@@ -66,6 +73,8 @@ class _TechHomeState extends State<TechHome> {
                   t['is_telat'].toString() == "0",
             )
             .length;
+
+        // Progress: Menunggu bongkar dan belum telat
         progress = tasks
             .where(
               (t) =>
@@ -73,6 +82,8 @@ class _TechHomeState extends State<TechHome> {
                   t['is_telat'].toString() == "0",
             )
             .length;
+
+        // Selesai: Tugas yang sudah tuntas
         selesai = tasks.where((t) => t['status'] == 'Selesai').length;
       });
     }
@@ -82,48 +93,7 @@ class _TechHomeState extends State<TechHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
-      appBar: _currentIndex == 0
-          ? AppBar(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              leading: Padding(
-                padding: const EdgeInsets.all(10.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.yellow,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.bolt, color: Colors.red, size: 20),
-                ),
-              ),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Selamat datang,",
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  Text(
-                    widget.user.nama,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.notifications_none,
-                    color: Colors.black54,
-                  ),
-                ),
-              ],
-            )
-          : null,
+      appBar: _currentIndex == 0 ? _buildAppBar() : null,
       body: [
         _buildHomeContent(),
         TechHistoryScreen(user: widget.user),
@@ -148,6 +118,40 @@ class _TechHomeState extends State<TechHome> {
     );
   }
 
+  AppBar _buildAppBar() {
+    return AppBar(
+      backgroundColor: Colors.white,
+      elevation: 0,
+      leading: Padding(
+        padding: const EdgeInsets.all(10.0),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.yellow,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.bolt, color: Colors.red, size: 20),
+        ),
+      ),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Selamat datang,",
+            style: TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+          Text(
+            widget.user.nama,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHomeContent() {
     return RefreshIndicator(
       onRefresh: () async => setState(() {
@@ -155,108 +159,8 @@ class _TechHomeState extends State<TechHome> {
       }),
       child: ListView(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: const BoxDecoration(color: Color(0xFF1A56F0)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "PESTA MOBILE - ULP PACITAN",
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Container(
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Row(
-                    children: [
-                      const CircleAvatar(
-                        backgroundColor: Color(0xFF00C7E1),
-                        child: Icon(Icons.engineering, color: Colors.white),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "Petugas Lapangan",
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.grey,
-                              ),
-                            ),
-                            Text(
-                              widget.user.nama,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Column(
-                        children: [
-                          const Text(
-                            "Total Tugas",
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
-                          Text(
-                            (pending + progress + terlambat).toString(),
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: Color(0xFF1A56F0),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(15),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00C7E1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildStatBox(
-                    terlambat.toString(),
-                    "Terlambat",
-                    Icons.warning_amber,
-                  ),
-                  _buildStatBox(
-                    (pending + progress).toString(),
-                    "Pending",
-                    Icons.access_time,
-                  ),
-                  _buildStatBox(
-                    selesai.toString(),
-                    "Selesai",
-                    Icons.check_circle_outline,
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildBlueHeader(),
+          _buildStatSection(),
           const Padding(
             padding: EdgeInsets.fromLTRB(20, 10, 20, 10),
             child: Text(
@@ -273,16 +177,139 @@ class _TechHomeState extends State<TechHome> {
                 return const Center(
                   child: Padding(
                     padding: EdgeInsets.all(40),
-                    child: Text("Tidak ada tugas hari ini."),
+                    child: Text("Tidak ada tugas."),
                   ),
                 );
+
+              // FILTER UI: Tampilkan hanya tugas Hari Ini ATAU yang Terlambat
+              final displayTasks = snapshot.data!
+                  .where(
+                    (t) =>
+                        t['is_hari_ini'].toString() == "1" ||
+                        t['is_telat'].toString() == "1",
+                  )
+                  .toList();
+
+              if (displayTasks.isEmpty)
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Text("Tugas hari ini sudah selesai."),
+                  ),
+                );
+
               return Column(
-                children: snapshot.data!.map((t) => _buildTaskCard(t)).toList(),
+                children: displayTasks.map((t) => _buildTaskCard(t)).toList(),
               );
             },
           ),
           const SizedBox(height: 20),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBlueHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: const BoxDecoration(color: Color(0xFF1A56F0)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "PESTA MOBILE - ULP PACITAN",
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 15),
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  backgroundColor: Color(0xFF00C7E1),
+                  child: Icon(Icons.engineering, color: Colors.white),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Petugas Lapangan",
+                        style: TextStyle(fontSize: 10, color: Colors.grey),
+                      ),
+                      Text(
+                        widget.user.nama,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Column(
+                  children: [
+                    const Text(
+                      "Total Tugas",
+                      style: TextStyle(fontSize: 10, color: Colors.grey),
+                    ),
+                    Text(
+                      (pending + progress + terlambat).toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Color(0xFF1A56F0),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatSection() {
+    return Padding(
+      padding: const EdgeInsets.all(15),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF00C7E1),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildStatBox(
+              terlambat.toString(),
+              "Terlambat",
+              Icons.warning_amber,
+            ),
+            _buildStatBox(
+              (pending + progress).toString(),
+              "Pending",
+              Icons.access_time,
+            ),
+            _buildStatBox(
+              selesai.toString(),
+              "Selesai",
+              Icons.check_circle_outline,
+            ),
+          ],
+        ),
       ),
     );
   }

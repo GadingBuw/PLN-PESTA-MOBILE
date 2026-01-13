@@ -74,4 +74,6 @@ class NotificationService {
       ),
     );
   }
+
+  static void scheduleTaskNotification(task) {}
 }

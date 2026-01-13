@@ -103,14 +103,6 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(color: Colors.grey.shade200),
                   ),
-                  child: Text(
-                    "Total ${listData.length} agenda terselesaikan",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Colors.blue,
-                    ),
-                  ),
                 ),
               ),
               if (listData.isEmpty)
