@@ -17,6 +17,11 @@ class TechHistoryScreen extends StatefulWidget {
 class _TechHistoryScreenState extends State<TechHistoryScreen> {
   late Future<List<dynamic>> _historyFuture;
 
+  // Warna Tema Senada
+  final Color primaryBlue = const Color(0xFF1A56F0);
+  final Color bgGrey = const Color(0xFFF0F2F5);
+  final Color borderGrey = const Color(0xFFE0E4E8);
+
   @override
   void initState() {
     super.initState();
@@ -31,7 +36,7 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
         ),
       );
       if (response.statusCode == 200) return jsonDecode(response.body);
-      throw "Server Error: ${response.statusCode}";
+      throw "Server Error";
     } catch (e) {
       throw "Gagal terhubung ke server.";
     }
@@ -50,85 +55,107 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
+      backgroundColor: bgGrey,
+      appBar: AppBar(
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "PESTA MOBILE",
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.white70,
+                letterSpacing: 1,
+              ),
+            ),
+            Text(
+              "Riwayat Pengerjaan",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        backgroundColor: primaryBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
+      ),
       body: FutureBuilder<List<dynamic>>(
         future: _historyFuture,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting)
-            return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator(color: primaryBlue));
+          }
+          if (snapshot.hasError) {
+            return _buildErrorState(snapshot.error.toString());
+          }
+
           final listData = snapshot.data ?? [];
 
-          return ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.only(
-                  top: 50,
-                  left: 20,
-                  right: 20,
-                  bottom: 20,
-                ),
-                decoration: const BoxDecoration(color: Color(0xFF1A56F0)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "PESTA MOBILE",
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    const Text(
-                      "Riwayat Pengerjaan Rill",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(padding: const EdgeInsets.all(15)),
-              if (listData.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Text("Belum ada riwayat pengerjaan."),
+          return RefreshIndicator(
+            color: primaryBlue,
+            onRefresh: () async {
+              setState(() {
+                _historyFuture = fetchHistory();
+              });
+            },
+            child: listData.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.all(15),
+                    itemCount: listData.length,
+                    itemBuilder: (context, index) =>
+                        _buildHistoryCard(listData[index]),
                   ),
-                )
-              else
-                ...listData.map((task) => _buildHistoryCard(task)).toList(),
-              const SizedBox(height: 20),
-            ],
           );
         },
       ),
     );
   }
 
+  Widget _buildEmptyState() {
+    return ListView(
+      // Pakai ListView supaya RefreshIndicator jalan
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+        Center(
+          child: Column(
+            children: [
+              Icon(
+                Icons.history_toggle_off_rounded,
+                size: 70,
+                color: Colors.grey[300],
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "Belum ada riwayat pengerjaan.",
+                style: TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Text(error, style: const TextStyle(color: Colors.red)),
+    );
+  }
+
   Widget _buildHistoryCard(Map<String, dynamic> task) {
     bool isSelesai = task['status'] == 'Selesai';
-    Color textColor = isSelesai ? Colors.green : Colors.orange;
+    Color statusColor = isSelesai ? Colors.green : Colors.orange;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderGrey),
+      ),
+      child: Material(
+        color: Colors.transparent,
         child: InkWell(
           onTap: () =>
               Navigator.push(
@@ -141,9 +168,9 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
                   _historyFuture = fetchHistory();
                 }),
               ),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.all(15.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -151,27 +178,27 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "Agenda: ${task['id_pelanggan']}",
-                      style: const TextStyle(
+                      "AGENDA: ${task['id_pelanggan']}",
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                        color: primaryBlue.withOpacity(0.7),
                       ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
+                        horizontal: 10,
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: textColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(6),
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         task['status'].toUpperCase(),
                         style: TextStyle(
-                          color: textColor,
-                          fontSize: 8,
+                          color: statusColor,
+                          fontSize: 9,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -183,36 +210,42 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
                   task['nama_pelanggan'] ?? "",
                   style: const TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 15,
+                    fontSize: 16,
+                    color: Colors.black87,
                   ),
                 ),
-                Text(
-                  task['alamat'] ?? "",
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.location_on_rounded,
+                      size: 14,
+                      color: primaryBlue,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        task['alamat'] ?? "",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.black54,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-                const Divider(height: 25),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 14),
+                  child: Divider(height: 1, thickness: 0.5),
+                ),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _dateInfo("Tgl Pasang", formatDate(task['tgl_pasang'])),
-                    _dateInfo("Tgl Bongkar", formatDate(task['tgl_bongkar'])),
-                    Column(
-                      children: [
-                        const Text(
-                          "Daya",
-                          style: TextStyle(fontSize: 9, color: Colors.grey),
-                        ),
-                        Text(
-                          "${task['daya']} VA",
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+                    _infoTile("TGL PASANG", formatDate(task['tgl_pasang'])),
+                    _infoTile("TGL BONGKAR", formatDate(task['tgl_bongkar'])),
+                    _infoTile("DAYA", "${task['daya']} VA"),
                   ],
                 ),
               ],
@@ -223,13 +256,25 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
     );
   }
 
-  Widget _dateInfo(String label, String val) => Column(
+  Widget _infoTile(String label, String val) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey)),
+      Text(
+        label,
+        style: const TextStyle(
+          fontSize: 9,
+          color: Colors.grey,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      const SizedBox(height: 2),
       Text(
         val,
-        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
       ),
     ],
   );

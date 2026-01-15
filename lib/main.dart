@@ -7,7 +7,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'services/notification_service.dart';
 import 'screens/login_screen.dart';
 
-final String baseUrl = "http://10.5.224.192/pesta_api/index.php";
+// URL API
+final String baseUrl = "http://10.5.224.200/pesta_api/index.php";
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -35,20 +36,17 @@ void callbackDispatcher() {
               String tglPasang = t['tgl_pasang']?.toString() ?? '';
               String tglBongkar = t['tgl_bongkar']?.toString() ?? '';
 
-              // LOGIKA FILTER SANGAT KETAT
               bool isJadwalPasangHariIni =
                   (status == 'Menunggu Pemasangan' && tglPasang == todayStr);
               bool isJadwalBongkarHariIni =
                   (status == 'Menunggu Pembongkaran' && tglBongkar == todayStr);
 
               if (isJadwalPasangHariIni || isJadwalBongkarHariIni) {
-                // Tambahan: Cek agar tidak mengirim notifikasi yang sama berkali-kali dalam 15 menit
                 String lastNotifKey = "last_notif_${t['id']}";
                 String? lastSent = prefs.getString(lastNotifKey);
 
                 if (lastSent != todayStr) {
                   await NotificationService.showInstantNotification(t);
-                  // Simpan tanda bahwa tugas ini sudah dikirim notifikasinya hari ini
                   await prefs.setString(lastNotifKey, todayStr);
                 }
               }
@@ -65,26 +63,96 @@ void callbackDispatcher() {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inisialisasi Lokal & Notifikasi
   await initializeDateFormatting('id_ID', null);
   await NotificationService.initializeNotification();
 
   // 1. Inisialisasi Workmanager
   await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
 
-  // 2. BERSIHKAN SEMUA TASK LAMA (Penting!)
+  // 2. Bersihkan task lama
   await Workmanager().cancelAll();
 
-  // 3. DAFTARKAN ULANG DENGAN DELAY 10 DETIK
-  // Gunakan registerOneOffTask dulu untuk testing segera, atau Periodic untuk rutin
+  // 3. Daftarkan Periodic Task (Interval minimal Android adalah 15 menit)
   await Workmanager().registerPeriodicTask(
-    "pesta_task_check_unique_id", // Gunakan ID baru agar tidak bentrok dengan cache lama
+    "pesta_task_check_unique_id",
     "fetchDataTask",
     frequency: const Duration(minutes: 15),
     constraints: Constraints(networkType: NetworkType.connected),
     existingWorkPolicy: ExistingWorkPolicy.replace,
   );
 
-  runApp(
-    const MaterialApp(debugShowCheckedModeBanner: false, home: LoginScreen()),
-  );
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // Definisi Warna Biru Solid Anda
+    const Color myPrimaryColor = Color(0xFF1A56F0);
+    const Color myBgGrey = Color(0xFFF0F2F5);
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'PLN PESTA Mobile',
+
+      // --- PENYELARASAN TEMA GLOBAL ---
+      theme: ThemeData(
+        useMaterial3: true,
+        // Warna utama aplikasi (Primary)
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: myPrimaryColor,
+          primary: myPrimaryColor,
+          secondary: const Color(0xFF00C7E1), // Biru cyan untuk variasi
+        ),
+
+        // Warna Background Scaffold
+        scaffoldBackgroundColor: myBgGrey,
+
+        // Penyelarasan Warna Progress Indicator (Loading)
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: myPrimaryColor,
+        ),
+
+        // Penyelarasan AppBar Global
+        appBarTheme: const AppBarTheme(
+          backgroundColor: myPrimaryColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: false,
+          titleTextStyle: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+
+        // Penyelarasan Input/TextField Global
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE0E4E8)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE0E4E8)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: myPrimaryColor, width: 1.5),
+          ),
+        ),
+      ),
+      home: const LoginScreen(),
+    );
+  }
 }

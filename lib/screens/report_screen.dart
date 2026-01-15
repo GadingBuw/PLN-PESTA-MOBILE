@@ -19,6 +19,9 @@ class _ReportScreenState extends State<ReportScreen> {
   String selectedYear = DateFormat('yyyy').format(DateTime.now());
   bool isGenerating = false;
 
+  final Color primaryBlue = const Color(0xFF1A56F0);
+  final Color bgGrey = const Color(0xFFF0F2F5);
+
   final List<Map<String, String>> months = [
     {"value": "01", "label": "Januari"},
     {"value": "02", "label": "Februari"},
@@ -51,9 +54,11 @@ class _ReportScreenState extends State<ReportScreen> {
       List<dynamic> data = jsonDecode(response.body);
       if (data.isEmpty) {
         if (mounted)
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("Data Kosong")));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Data tidak ditemukan pada periode ini"),
+            ),
+          );
         setState(() => isGenerating = false);
         return;
       }
@@ -69,7 +74,6 @@ class _ReportScreenState extends State<ReportScreen> {
           margin: const pw.EdgeInsets.all(30),
           build: (pw.Context context) {
             return [
-              // Header Ringkas
               pw.Text(
                 "PT PLN (PERSERO) - ULP PACITAN",
                 style: pw.TextStyle(
@@ -91,8 +95,6 @@ class _ReportScreenState extends State<ReportScreen> {
               pw.SizedBox(height: 5),
               pw.Divider(thickness: 1),
               pw.SizedBox(height: 8),
-
-              // Tabel
               pw.TableHelper.fromTextArray(
                 headerStyle: pw.TextStyle(
                   fontWeight: pw.FontWeight.bold,
@@ -129,9 +131,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   ],
                 ),
               ),
-
-              // TANDA TANGAN (Dinaikkan mepet ke tabel)
-              pw.SizedBox(height: 10), // Jarak pendek agar tidak pindah halaman
+              pw.SizedBox(height: 20),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.end,
                 children: [
@@ -146,7 +146,7 @@ class _ReportScreenState extends State<ReportScreen> {
                         "Admin PESTA Mobile",
                         style: pw.TextStyle(fontSize: 9),
                       ),
-                      pw.SizedBox(height: 30), // Ruang TTD dipendekkan
+                      pw.SizedBox(height: 40),
                       pw.Container(
                         width: 130,
                         decoration: const pw.BoxDecoration(
@@ -172,7 +172,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
       await Printing.layoutPdf(
         onLayout: (format) async => pdf.save(),
-        name: 'Laporan_$selectedMonth.pdf',
+        name: 'Laporan_$monthLabel\_$selectedYear.pdf',
       );
     } catch (e) {
       if (mounted)
@@ -187,65 +187,174 @@ class _ReportScreenState extends State<ReportScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: bgGrey,
       appBar: AppBar(
-        title: const Text("Cetak Laporan PDF"),
-        backgroundColor: const Color(0xFF1A56F0),
+        title: const Text(
+          "Cetak Laporan PDF",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: primaryBlue,
         foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(25),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            const Icon(Icons.picture_as_pdf, size: 50, color: Colors.red),
-            const SizedBox(height: 30),
-            DropdownButtonFormField<String>(
-              value: selectedMonth,
-              decoration: const InputDecoration(
-                labelText: "Bulan",
-                border: OutlineInputBorder(),
+            // Header Icon Section
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFE0E4E8)),
               ),
-              items: months
-                  .map(
-                    (m) => DropdownMenuItem(
-                      value: m['value'],
-                      child: Text(m['label']!),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle,
                     ),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => selectedMonth = v!),
-            ),
-            const SizedBox(height: 15),
-            DropdownButtonFormField<String>(
-              value: selectedYear,
-              decoration: const InputDecoration(
-                labelText: "Tahun",
-                border: OutlineInputBorder(),
+                    child: const Icon(
+                      Icons.picture_as_pdf_rounded,
+                      size: 40,
+                      color: Colors.red,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Pilih Periode Laporan",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "Laporan akan di-generate dalam format PDF landscape",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
               ),
-              items: years
-                  .map(
-                    (y) => DropdownMenuItem(value: y, child: Text("Tahun $y")),
-                  )
-                  .toList(),
-              onChanged: (v) => setState(() => selectedYear = v!),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 20),
+
+            // Form Selection Section
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFE0E4E8)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildLabel("Pilih Bulan"),
+                  DropdownButtonFormField<String>(
+                    value: selectedMonth,
+                    decoration: _inputDecoration("Bulan"),
+                    items: months
+                        .map(
+                          (m) => DropdownMenuItem(
+                            value: m['value'],
+                            child: Text(m['label']!),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => selectedMonth = v!),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildLabel("Pilih Tahun"),
+                  DropdownButtonFormField<String>(
+                    value: selectedYear,
+                    decoration: _inputDecoration("Tahun"),
+                    items: years
+                        .map(
+                          (y) => DropdownMenuItem(
+                            value: y,
+                            child: Text("Tahun $y"),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setState(() => selectedYear = v!),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 30),
+
+            // Generate Button
             SizedBox(
               width: double.infinity,
-              height: 55,
+              height: 56,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF1A56F0),
+                  backgroundColor: primaryBlue,
                   foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
                 ),
                 onPressed: isGenerating ? null : _generatePdf,
                 icon: isGenerating
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Icon(Icons.print),
-                label: const Text("GENERATE PDF"),
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.print_rounded),
+                label: Text(
+                  isGenerating ? "PROSES..." : "GENERATE PDF",
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Colors.black54,
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: const Color(0xFFF8F9FA),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE0E4E8)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: primaryBlue, width: 1.5),
       ),
     );
   }

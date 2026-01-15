@@ -170,24 +170,49 @@ class _AdminHomeState extends State<AdminHome> {
         AdminMonitoringScreen(onBack: () => setState(() => _selectedIndex = 0)),
         ProfileScreen(user: widget.user),
       ][_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: const Color(0xFF1A56F0),
-        onTap: (index) => setState(() => _selectedIndex = index),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home_outlined),
-            label: "Beranda",
+      // ... bagian body tetap sama ...
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _selectedIndex,
+          // WARNA BACKGROUND: Putih agak keabu-abuan (Off-white)
+          backgroundColor: const Color(0xFFF8F9FA),
+          selectedItemColor: const Color(0xFF1A56F0),
+          unselectedItemColor: Colors.grey.shade500,
+          type: BottomNavigationBarType.fixed, // Tetap stabil meski banyak item
+          elevation: 0, // Elevation 0 karena kita pakai bayangan dari Container
+          onTap: (index) => setState(() => _selectedIndex = index),
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart),
-            label: "Monitoring",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline),
-            label: "Akun",
-          ),
-        ],
+          unselectedLabelStyle: const TextStyle(fontSize: 12),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: "Beranda",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart_outlined),
+              activeIcon: Icon(Icons.bar_chart),
+              label: "Monitoring",
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_outline),
+              activeIcon: Icon(Icons.person),
+              label: "Akun",
+            ),
+          ],
+        ),
       ),
     );
   }

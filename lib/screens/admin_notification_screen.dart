@@ -13,6 +13,7 @@ class AdminNotificationScreen extends StatefulWidget {
 
 class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
   late Future<List<dynamic>> _notifFuture;
+  final Color primaryBlue = const Color(0xFF1A56F0);
 
   @override
   void initState() {
@@ -25,80 +26,119 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
       final response = await http.get(
         Uri.parse("$baseUrl?action=get_notifications"),
       );
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      }
+      if (response.statusCode == 200) return jsonDecode(response.body);
       return [];
     } catch (e) {
       return [];
     }
   }
 
-  void _showDetailDialog(Map<String, dynamic> n) {
-    showDialog(
+  // MENGUBAH DIALOG MENJADI MODERN BOTTOM SHEET
+  void _showDetailBottomSheet(Map<String, dynamic> n) {
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          "Detail Aktivitas",
-          style: TextStyle(fontWeight: FontWeight.bold),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
         ),
-        content: Column(
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _itemInfo("Teknisi", n['teknisi']),
-            _itemInfo("Agenda", n['id_pelanggan']),
-            _itemInfo("Nama", n['nama_pelanggan']),
-            _itemInfo("Alamat", n['alamat']),
-            _itemInfo("Daya", "${n['daya']} VA"),
-            const Divider(),
-            _itemInfo("Tgl Pasang", n['tgl_pasang']),
-            _itemInfo("Tgl Bongkar", n['tgl_bongkar']),
-            const SizedBox(height: 10),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              "Detail Aktivitas",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const Divider(height: 30),
+
+            _itemInfo("Teknisi Pelaksana", n['teknisi']),
+            _itemInfo("ID Pelanggan / Agenda", n['id_pelanggan']),
+            _itemInfo("Nama Pelanggan", n['nama_pelanggan']),
+            _itemInfo("Alamat Lokasi", n['alamat']),
+            _itemInfo("Daya VA", "${n['daya']} VA"),
+
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                Expanded(child: _itemInfo("Tgl Pasang", n['tgl_pasang'])),
+                Expanded(child: _itemInfo("Tgl Bongkar", n['tgl_bongkar'])),
+              ],
+            ),
+
+            const SizedBox(height: 20),
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(15),
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(10),
+                color: primaryBlue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: primaryBlue.withOpacity(0.2)),
               ),
               child: Text(
-                "Status: ${n['status']}",
+                "STATUS AKHIR: ${n['status']}",
                 textAlign: TextAlign.center,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue,
+                  color: primaryBlue,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  "Tutup Detail",
+                  style: TextStyle(color: Colors.grey),
                 ),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Tutup"),
-          ),
-        ],
       ),
     );
   }
 
   Widget _itemInfo(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 3),
+      padding: const EdgeInsets.only(bottom: 15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
             style: const TextStyle(
-              fontSize: 10,
+              fontSize: 11,
               color: Colors.grey,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
             ),
           ),
-          Text(value, style: const TextStyle(fontSize: 14)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black87,
+            ),
+          ),
         ],
       ),
     );
@@ -107,11 +147,16 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
+      backgroundColor: const Color(0xFFF0F2F5), // Abu-abu bersih
       appBar: AppBar(
-        title: const Text("Seluruh Aktivitas"),
-        backgroundColor: const Color(0xFF1A56F0),
+        title: const Text(
+          "Riwayat Aktivitas",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: primaryBlue,
         foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: false,
       ),
       body: FutureBuilder<List<dynamic>>(
         future: _notifFuture,
@@ -120,7 +165,23 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
             return const Center(child: CircularProgressIndicator());
           }
           if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text("Belum ada riwayat aktivitas."));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.history_toggle_off,
+                    size: 60,
+                    color: Colors.grey[300],
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    "Belum ada riwayat aktivitas.",
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
           }
 
           return RefreshIndicator(
@@ -130,69 +191,57 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
               });
             },
             child: ListView.builder(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(16),
               itemCount: snapshot.data!.length,
               itemBuilder: (context, index) {
                 final n = snapshot.data![index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: InkWell(
-                    onTap: () => _showDetailDialog(n),
-                    borderRadius: BorderRadius.circular(15),
-                    child: Container(
-                      padding: const EdgeInsets.all(15),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFFE5E7EB)),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    onTap: () => _showDetailBottomSheet(n),
+                    leading: Container(
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(15),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.02),
-                            blurRadius: 10,
-                          ),
-                        ],
+                        color: primaryBlue.withOpacity(0.1),
+                        shape: BoxShape.circle,
                       ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.history,
-                              color: Colors.blue,
-                            ),
-                          ),
-                          const SizedBox(width: 15),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "${n['teknisi']} ${n['aksi']}",
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                                Text(
-                                  "Agenda: ${n['id_pelanggan']} - ${n['nama_pelanggan']}",
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(
-                            Icons.arrow_forward_ios,
-                            size: 12,
-                            color: Colors.grey,
-                          ),
-                        ],
+                      child: Icon(
+                        Icons.history_edu_rounded,
+                        color: primaryBlue,
+                        size: 20,
                       ),
+                    ),
+                    title: Text(
+                      "${n['teknisi']} ${n['aksi']}",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        "Pelanggan: ${n['nama_pelanggan']}\nID: ${n['id_pelanggan']}",
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.grey,
+                      size: 18,
                     ),
                   ),
                 );

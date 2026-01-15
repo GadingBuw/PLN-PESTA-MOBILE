@@ -327,26 +327,37 @@ class _TechHomeState extends State<TechHome> {
 
   Widget _buildStatSection() {
     return Padding(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: const Color(0xFF00C7E1),
+          color: const Color(0xFF00C7E1), // Warna Cyan senada AdminHome
           borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF00C7E1).withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _buildStatBox(
               terlambat.toString(),
               "Terlambat",
-              Icons.warning_amber,
+              Icons.warning_amber_rounded,
             ),
+            // Garis pemisah vertikal halus
+            Container(width: 1, height: 30, color: Colors.white24),
             _buildStatBox(
               (pending + progress).toString(),
-              "Pending",
+              "Antrian",
               Icons.access_time,
             ),
+            // Garis pemisah vertikal halus
+            Container(width: 1, height: 30, color: Colors.white24),
             _buildStatBox(
               selesai.toString(),
               "Selesai",
@@ -360,9 +371,10 @@ class _TechHomeState extends State<TechHome> {
 
   Widget _buildStatBox(String val, String label, IconData icon) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, color: Colors.white, size: 24),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           val,
           style: const TextStyle(
@@ -371,7 +383,14 @@ class _TechHomeState extends State<TechHome> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 10)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
       ],
     );
   }
