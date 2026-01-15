@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Tambahkan ini
 import '../models/user_model.dart';
 import 'admin_home.dart';
 import 'tech_home.dart';
@@ -16,6 +17,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final p = TextEditingController();
   bool isLoading = true;
 
+  // Inisialisasi client Supabase
+  final supabase = Supabase.instance.client;
+
   @override
   void initState() {
     super.initState();
@@ -28,13 +32,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (savedUsername != null) {
       try {
-        final user = listUser.firstWhere((x) => x.username == savedUsername);
+        // Ambil data user dari tabel 'users' di Supabase
+        final data = await supabase
+            .from('users')
+            .select()
+            .eq('username', savedUsername)
+            .single(); // Ambil satu data saja
+
         if (mounted) {
+          final user = UserModel.fromMap(data); // Pastikan model Anda punya fromMap
           _navigateToHome(user);
         }
         return;
       } catch (e) {
-        debugPrint("Session user not found");
+        debugPrint("Session user not found in Supabase: $e");
       }
     }
 
@@ -44,24 +55,40 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void login() async {
+    if (u.text.isEmpty || p.text.isEmpty) return;
+
+    setState(() => isLoading = true);
+
     try {
-      final user = listUser.firstWhere(
-        (x) => x.username == u.text && x.password == p.text,
-      );
+      // Query ke Supabase untuk mencocokkan username dan password
+      final data = await supabase
+          .from('users')
+          .select()
+          .eq('username', u.text)
+          .eq('password', p.text)
+          .maybeSingle(); // maybeSingle agar tidak error jika tidak ketemu
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_session', user.username);
+      if (data != null) {
+        final user = UserModel.fromMap(data);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('user_session', user.username);
 
-      if (mounted) {
-        _navigateToHome(user);
+        if (mounted) {
+          _navigateToHome(user);
+        }
+      } else {
+        throw "Username atau Password Salah!";
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Username atau Password Salah!"),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      setState(() => isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
@@ -96,17 +123,12 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             children: [
               const SizedBox(height: 100),
-
-              // --- LOGO PLN OFFLINE (ASSET) ---
               Container(
                 width: 100,
                 height: 100,
                 padding: const EdgeInsets.all(8),
                 child: ClipRRect(
-                  // Tambahkan ini untuk melengkungkan sudut gambar
-                  borderRadius: BorderRadius.circular(
-                    15,
-                  ), // Radius 15 sesuai permintaan
+                  borderRadius: BorderRadius.circular(15),
                   child: Image.asset(
                     'assets/images/logo_pln.png',
                     fit: BoxFit.contain,
@@ -115,7 +137,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 15),
               const Text(
                 "PESTA MOBILE",

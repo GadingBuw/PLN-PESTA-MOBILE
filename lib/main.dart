@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+// Hapus http karena kita akan menggunakan SDK Supabase
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'package:intl/date_symbol_data_local.dart';
 import 'services/notification_service.dart';
 import 'screens/login_screen.dart';
 
-// URL API
-final String baseUrl = "http://10.5.224.200/pesta_api/index.php";
+// Masukkan URL dan Anon Key dari dashboard Supabase Anda (Project Settings > API)
+const String supabaseUrl = 'https://vzupgvjbmllwudoenuxp.supabase.co'; 
+const String supabaseKey = 'sb_publishable_0chiXdXnRJZB4l6VKTU1ww_myomOLhP'; 
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -18,43 +19,46 @@ void callbackDispatcher() {
 
     if (username != null) {
       try {
-        final response = await http.get(
-          Uri.parse("$baseUrl?action=get_all_tasks&teknisi=$username"),
-        );
+        // Inisialisasi Supabase khusus untuk Background Process
+        await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+        final supabase = Supabase.instance.client;
 
-        if (response.statusCode == 200) {
-          List data = jsonDecode(response.body);
-          if (data.isNotEmpty) {
-            await NotificationService.initializeNotification();
+        // Mengambil data langsung dari tabel 'pesta_tasks'
+        final List<dynamic> data = await supabase
+            .from('pesta_tasks')
+            .select()
+            .eq('teknisi', username); // Filter berdasarkan nama teknisi
 
-            DateTime now = DateTime.now();
-            String todayStr =
-                "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+        if (data.isNotEmpty) {
+          await NotificationService.initializeNotification();
 
-            for (var t in data) {
-              String status = t['status'] ?? '';
-              String tglPasang = t['tgl_pasang']?.toString() ?? '';
-              String tglBongkar = t['tgl_bongkar']?.toString() ?? '';
+          DateTime now = DateTime.now();
+          String todayStr =
+              "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-              bool isJadwalPasangHariIni =
-                  (status == 'Menunggu Pemasangan' && tglPasang == todayStr);
-              bool isJadwalBongkarHariIni =
-                  (status == 'Menunggu Pembongkaran' && tglBongkar == todayStr);
+          for (var t in data) {
+            String status = t['status'] ?? '';
+            String tglPasang = t['tgl_pasang']?.toString() ?? '';
+            String tglBongkar = t['tgl_bongkar']?.toString() ?? '';
 
-              if (isJadwalPasangHariIni || isJadwalBongkarHariIni) {
-                String lastNotifKey = "last_notif_${t['id']}";
-                String? lastSent = prefs.getString(lastNotifKey);
+            bool isJadwalPasangHariIni =
+                (status == 'Menunggu Pemasangan' && tglPasang == todayStr);
+            bool isJadwalBongkarHariIni =
+                (status == 'Menunggu Pembongkaran' && tglBongkar == todayStr);
 
-                if (lastSent != todayStr) {
-                  await NotificationService.showInstantNotification(t);
-                  await prefs.setString(lastNotifKey, todayStr);
-                }
+            if (isJadwalPasangHariIni || isJadwalBongkarHariIni) {
+              String lastNotifKey = "last_notif_${t['id']}";
+              String? lastSent = prefs.getString(lastNotifKey);
+
+              if (lastSent != todayStr) {
+                await NotificationService.showInstantNotification(t);
+                await prefs.setString(lastNotifKey, todayStr);
               }
             }
           }
         }
       } catch (e) {
-        debugPrint("Background Fetch Error: $e");
+        debugPrint("Background Fetch Error (Supabase): $e");
       }
     }
     return Future.value(true);
@@ -64,17 +68,18 @@ void callbackDispatcher() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inisialisasi Lokal & Notifikasi
+  // 1. Inisialisasi Supabase di awal aplikasi
+  await Supabase.initialize(
+    url: supabaseUrl,
+    anonKey: supabaseKey,
+  );
+
   await initializeDateFormatting('id_ID', null);
   await NotificationService.initializeNotification();
 
-  // 1. Inisialisasi Workmanager
   await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
-
-  // 2. Bersihkan task lama
   await Workmanager().cancelAll();
 
-  // 3. Daftarkan Periodic Task (Interval minimal Android adalah 15 menit)
   await Workmanager().registerPeriodicTask(
     "pesta_task_check_unique_id",
     "fetchDataTask",
@@ -91,33 +96,23 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Definisi Warna Biru Solid Anda
     const Color myPrimaryColor = Color(0xFF1A56F0);
     const Color myBgGrey = Color(0xFFF0F2F5);
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'PLN PESTA Mobile',
-
-      // --- PENYELARASAN TEMA GLOBAL ---
       theme: ThemeData(
         useMaterial3: true,
-        // Warna utama aplikasi (Primary)
         colorScheme: ColorScheme.fromSeed(
           seedColor: myPrimaryColor,
           primary: myPrimaryColor,
-          secondary: const Color(0xFF00C7E1), // Biru cyan untuk variasi
+          secondary: const Color(0xFF00C7E1),
         ),
-
-        // Warna Background Scaffold
         scaffoldBackgroundColor: myBgGrey,
-
-        // Penyelarasan Warna Progress Indicator (Loading)
         progressIndicatorTheme: const ProgressIndicatorThemeData(
           color: myPrimaryColor,
         ),
-
-        // Penyelarasan AppBar Global
         appBarTheme: const AppBarTheme(
           backgroundColor: myPrimaryColor,
           foregroundColor: Colors.white,
@@ -129,8 +124,6 @@ class MyApp extends StatelessWidget {
             color: Colors.white,
           ),
         ),
-
-        // Penyelarasan Input/TextField Global
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.white,

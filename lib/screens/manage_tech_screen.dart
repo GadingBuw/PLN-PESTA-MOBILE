@@ -1,19 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Impor SDK Supabase
 import '../models/user_model.dart';
 import 'tech_calendar_screen.dart';
 
 class ManageTechScreen extends StatelessWidget {
-  const ManageTechScreen({super.key});
+  ManageTechScreen({super.key});
+
+  // Inisialisasi client Supabase
+  final supabase = Supabase.instance.client;
 
   final Color primaryBlue = const Color(0xFF1A56F0);
   final Color bgGrey = const Color(0xFFF0F2F5);
   final Color borderGrey = const Color(0xFFE0E4E8);
 
+  // Fungsi untuk mengambil data teknisi dari tabel 'users' di Supabase
+  Future<List<UserModel>> _fetchTechnicians() async {
+    try {
+      final response = await supabase
+          .from('users')
+          .select()
+          .eq('role', 'teknisi') // Filter hanya user dengan role teknisi
+          .order('nama', ascending: true); // Urutkan berdasarkan nama A-Z
+
+      final List<dynamic> data = response as List<dynamic>;
+      return data.map((u) => UserModel.fromMap(u)).toList();
+    } catch (e) {
+      debugPrint("Error fetching technicians: $e");
+      return [];
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Filter hanya user dengan role teknisi dari list lokal
-    final technicians = listUser.where((u) => u.role == "teknisi").toList();
-
     return Scaffold(
       backgroundColor: bgGrey,
       appBar: AppBar(
@@ -26,16 +44,34 @@ class ManageTechScreen extends StatelessWidget {
         elevation: 0,
         centerTitle: false,
       ),
-      body: technicians.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: technicians.length,
-              itemBuilder: (context, index) {
-                final tech = technicians[index];
-                return _buildTechCard(context, tech);
-              },
-            ),
+      // Menggunakan FutureBuilder untuk menangani data asinkron dari database
+      body: FutureBuilder<List<UserModel>>(
+        future: _fetchTechnicians(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text("Terjadi kesalahan: ${snapshot.error}"));
+          }
+
+          final technicians = snapshot.data ?? [];
+
+          if (technicians.isEmpty) {
+            return _buildEmptyState();
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: technicians.length,
+            itemBuilder: (context, index) {
+              final tech = technicians[index];
+              return _buildTechCard(context, tech);
+            },
+          );
+        },
+      ),
     );
   }
 

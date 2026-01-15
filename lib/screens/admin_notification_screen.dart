@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../main.dart';
+import 'package:supabase_flutter/supabase_flutter.dart'; // Gunakan SDK Supabase
 
 class AdminNotificationScreen extends StatefulWidget {
   const AdminNotificationScreen({super.key});
@@ -14,6 +12,9 @@ class AdminNotificationScreen extends StatefulWidget {
 class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
   late Future<List<dynamic>> _notifFuture;
   final Color primaryBlue = const Color(0xFF1A56F0);
+  
+  // Inisialisasi client Supabase
+  final supabase = Supabase.instance.client;
 
   @override
   void initState() {
@@ -21,19 +22,30 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
     _notifFuture = _fetchAllNotifications();
   }
 
+  // Fungsi Pengganti API get_notifications PHP
   Future<List<dynamic>> _fetchAllNotifications() async {
     try {
-      final response = await http.get(
-        Uri.parse("$baseUrl?action=get_notifications"),
-      );
-      if (response.statusCode == 200) return jsonDecode(response.body);
-      return [];
+      // Mengambil data aktivitas dari Supabase diurutkan dari yang terbaru
+      final response = await supabase
+          .from('pesta_tasks')
+          .select()
+          .order('created_at', ascending: false);
+
+      final List<dynamic> data = response as List<dynamic>;
+
+      // Tambahkan field 'aksi' secara dinamis berdasarkan status tugas untuk tampilan UI
+      return data.map((n) {
+        String status = n['status'] ?? '';
+        n['aksi'] = (status == 'Selesai') ? "menyelesaikan tugas" : "memperbarui status";
+        return n;
+      }).toList();
     } catch (e) {
+      debugPrint("Error Fetch Notif Supabase: $e");
       return [];
     }
   }
 
-  // MENGUBAH DIALOG MENJADI MODERN BOTTOM SHEET
+  // MODAL BOTTOM SHEET (Tetap sama, hanya menyesuaikan handling data)
   void _showDetailBottomSheet(Map<String, dynamic> n) {
     showModalBottomSheet(
       context: context,
@@ -66,17 +78,17 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
             ),
             const Divider(height: 30),
 
-            _itemInfo("Teknisi Pelaksana", n['teknisi']),
-            _itemInfo("ID Pelanggan / Agenda", n['id_pelanggan']),
-            _itemInfo("Nama Pelanggan", n['nama_pelanggan']),
-            _itemInfo("Alamat Lokasi", n['alamat']),
-            _itemInfo("Daya VA", "${n['daya']} VA"),
+            _itemInfo("Teknisi Pelaksana", n['teknisi'] ?? "-"),
+            _itemInfo("ID Pelanggan / Agenda", n['id_pelanggan'] ?? "-"),
+            _itemInfo("Nama Pelanggan", n['nama_pelanggan'] ?? "-"),
+            _itemInfo("Alamat Lokasi", n['alamat'] ?? "-"),
+            _itemInfo("Daya VA", "${n['daya'] ?? '0'} VA"),
 
             const SizedBox(height: 15),
             Row(
               children: [
-                Expanded(child: _itemInfo("Tgl Pasang", n['tgl_pasang'])),
-                Expanded(child: _itemInfo("Tgl Bongkar", n['tgl_bongkar'])),
+                Expanded(child: _itemInfo("Tgl Pasang", n['tgl_pasang'] ?? "-")),
+                Expanded(child: _itemInfo("Tgl Bongkar", n['tgl_bongkar'] ?? "-")),
               ],
             ),
 
@@ -147,7 +159,7 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5), // Abu-abu bersih
+      backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
         title: const Text(
           "Riwayat Aktivitas",
@@ -169,16 +181,9 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.history_toggle_off,
-                    size: 60,
-                    color: Colors.grey[300],
-                  ),
+                  Icon(Icons.history_toggle_off, size: 60, color: Colors.grey[300]),
                   const SizedBox(height: 10),
-                  const Text(
-                    "Belum ada riwayat aktivitas.",
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  const Text("Belum ada riwayat aktivitas.", style: TextStyle(color: Colors.grey)),
                 ],
               ),
             );
@@ -203,10 +208,7 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                     border: Border.all(color: const Color(0xFFE5E7EB)),
                   ),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     onTap: () => _showDetailBottomSheet(n),
                     leading: Container(
                       padding: const EdgeInsets.all(10),
@@ -214,35 +216,20 @@ class _AdminNotificationScreenState extends State<AdminNotificationScreen> {
                         color: primaryBlue.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        Icons.history_edu_rounded,
-                        color: primaryBlue,
-                        size: 20,
-                      ),
+                      child: Icon(Icons.history_edu_rounded, color: primaryBlue, size: 20),
                     ),
                     title: Text(
-                      "${n['teknisi']} ${n['aksi']}",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
+                      "${n['teknisi'] ?? 'Teknisi'} ${n['aksi']}",
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        "Pelanggan: ${n['nama_pelanggan']}\nID: ${n['id_pelanggan']}",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                          height: 1.4,
-                        ),
+                        "Pelanggan: ${n['nama_pelanggan'] ?? '-'}\nID: ${n['id_pelanggan'] ?? '-'}",
+                        style: const TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
                       ),
                     ),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey,
-                      size: 18,
-                    ),
+                    trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
                   ),
                 );
               },

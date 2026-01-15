@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../models/user_model.dart';
-import '../main.dart';
 import 'admin_screen.dart';
 import 'admin_monitoring_screen.dart';
 import 'profile_screen.dart';
@@ -21,10 +19,13 @@ class AdminHome extends StatefulWidget {
 
 class _AdminHomeState extends State<AdminHome> {
   int _selectedIndex = 0;
+  
+  final supabase = Supabase.instance.client;
+
   Map<String, dynamic> stats = {
-    "selesai": "0",
-    "progress": "0",
-    "pending": "0",
+    "selesai": 0,
+    "progress": 0,
+    "pending": 0,
   };
 
   List<dynamic> dynamicNotifs = [];
@@ -37,23 +38,82 @@ class _AdminHomeState extends State<AdminHome> {
     _refreshAllData();
   }
 
-  // --- LOGIKA BARU: POP-UP DETAIL PEKERJAAN ---
+  Future<void> _loadHiddenNotifications() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        hiddenNotifIds = prefs.getStringList('hidden_notifs_${widget.user.username}') ?? [];
+      });
+    }
+  }
+
+  Future<void> _hideNotificationPermanently(String idPelanggan) async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      hiddenNotifIds.add(idPelanggan);
+    });
+    await prefs.setStringList('hidden_notifs_${widget.user.username}', hiddenNotifIds);
+  }
+
+  Future<void> _refreshAllData() async {
+    await _fetchStats();
+    await _fetchNotifications();
+  }
+
+  Future<void> _fetchStats() async {
+    try {
+      final response = await supabase.from('pesta_tasks').select('status');
+      final List<dynamic> data = response as List<dynamic>;
+
+      if (mounted) {
+        setState(() {
+          stats = {
+            "selesai": data.where((t) => t['status'] == 'Selesai').length,
+            "progress": data.where((t) => t['status'] == 'Menunggu Pembongkaran').length,
+            "pending": data.where((t) => t['status'] == 'Menunggu Pemasangan').length,
+          };
+        });
+      }
+    } catch (e) {
+      debugPrint("Error Stats Supabase: $e");
+    }
+  }
+
+  Future<void> _fetchNotifications() async {
+    try {
+      final response = await supabase
+          .from('pesta_tasks')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(10);
+
+      if (mounted) {
+        setState(() {
+          dynamicNotifs = (response as List<dynamic>).map((n) {
+            String status = n['status'] ?? '';
+            n['aksi'] = (status == 'Selesai') ? "menyelesaikan tugas" : "memperbarui status";
+            return n;
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint("Error Notif Supabase: $e");
+    }
+  }
+
   void _showDetailDialog(Map<String, dynamic> n) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          "Detail Aktivitas",
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text("Detail Aktivitas", style: TextStyle(fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _itemInfo("Teknisi", n['teknisi']),
-            _itemInfo("Agenda", n['id_pelanggan']),
-            _itemInfo("Nama", n['nama_pelanggan']),
+            _itemInfo("Teknisi", n['teknisi'] ?? "-"),
+            _itemInfo("Agenda", n['id_pelanggan'] ?? "-"),
+            _itemInfo("Nama", n['nama_pelanggan'] ?? "-"),
             _itemInfo("Alamat", n['alamat'] ?? "-"),
             _itemInfo("Daya", "${n['daya'] ?? '0'} VA"),
             const Divider(),
@@ -63,26 +123,17 @@ class _AdminHomeState extends State<AdminHome> {
             Container(
               padding: const EdgeInsets.all(8),
               width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
+              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
               child: Text(
                 "Status: ${n['status']}",
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
               ),
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Tutup"),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Tutup")),
         ],
       ),
     );
@@ -94,70 +145,11 @@ class _AdminHomeState extends State<AdminHome> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: Colors.grey,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
           Text(value, style: const TextStyle(fontSize: 14)),
         ],
       ),
     );
-  }
-
-  Future<void> _loadHiddenNotifications() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      hiddenNotifIds =
-          prefs.getStringList('hidden_notifs_${widget.user.username}') ?? [];
-    });
-  }
-
-  Future<void> _hideNotificationPermanently(String idPelanggan) async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      hiddenNotifIds.add(idPelanggan);
-    });
-    await prefs.setStringList(
-      'hidden_notifs_${widget.user.username}',
-      hiddenNotifIds,
-    );
-  }
-
-  Future<void> _refreshAllData() async {
-    await _fetchStats();
-    await _fetchNotifications();
-  }
-
-  Future<void> _fetchStats() async {
-    try {
-      final response = await http.get(
-        Uri.parse("$baseUrl?action=get_admin_stats"),
-      );
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        if (mounted) setState(() => stats = data);
-      }
-    } catch (e) {
-      debugPrint("Error Stats: $e");
-    }
-  }
-
-  Future<void> _fetchNotifications() async {
-    try {
-      final response = await http.get(
-        Uri.parse("$baseUrl?action=get_notifications"),
-      );
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        if (mounted) setState(() => dynamicNotifs = data);
-      }
-    } catch (e) {
-      debugPrint("Error Notif: $e");
-    }
   }
 
   @override
@@ -170,47 +162,20 @@ class _AdminHomeState extends State<AdminHome> {
         AdminMonitoringScreen(onBack: () => setState(() => _selectedIndex = 0)),
         ProfileScreen(user: widget.user),
       ][_selectedIndex],
-      // ... bagian body tetap sama ...
       bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
+        decoration: BoxDecoration(boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))]),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
-          // WARNA BACKGROUND: Putih agak keabu-abuan (Off-white)
           backgroundColor: const Color(0xFFF8F9FA),
           selectedItemColor: const Color(0xFF1A56F0),
           unselectedItemColor: Colors.grey.shade500,
-          type: BottomNavigationBarType.fixed, // Tetap stabil meski banyak item
-          elevation: 0, // Elevation 0 karena kita pakai bayangan dari Container
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
           onTap: (index) => setState(() => _selectedIndex = index),
-          selectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          ),
-          unselectedLabelStyle: const TextStyle(fontSize: 12),
           items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: "Beranda",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart_outlined),
-              activeIcon: Icon(Icons.bar_chart),
-              label: "Monitoring",
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: "Akun",
-            ),
+            BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: "Beranda"),
+            BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), activeIcon: Icon(Icons.bar_chart), label: "Monitoring"),
+            BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: "Akun"),
           ],
         ),
       ),
@@ -224,48 +189,26 @@ class _AdminHomeState extends State<AdminHome> {
       leading: Padding(
         padding: const EdgeInsets.all(8),
         child: ClipRRect(
-          // Tambahkan ini untuk melengkungkan sudut gambar
-          borderRadius: BorderRadius.circular(
-            15,
-          ), // Radius 15 sesuai permintaan
+          borderRadius: BorderRadius.circular(15),
           child: Image.asset(
             'assets/images/logo_pln.png',
             fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) =>
-                const Icon(Icons.bolt, size: 60, color: Colors.red),
+            errorBuilder: (context, error, stackTrace) => const Icon(Icons.bolt, size: 30, color: Colors.red),
           ),
         ),
       ),
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Selamat datang,",
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          Text(
-            widget.user.nama,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
+          const Text("Selamat datang,", style: TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(widget.user.nama, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
         ],
       ),
       actions: [
-        IconButton(
-          onPressed: _refreshAllData,
-          icon: const Icon(Icons.refresh, color: Colors.blue),
-        ),
+        IconButton(onPressed: _refreshAllData, icon: const Icon(Icons.refresh, color: Colors.blue)),
         IconButton(
           onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (c) => const AdminNotificationScreen(),
-              ),
-            ).then((_) => _refreshAllData());
+            Navigator.push(context, MaterialPageRoute(builder: (c) => const AdminNotificationScreen())).then((_) => _refreshAllData());
           },
           icon: const Icon(Icons.notifications_none, color: Colors.black54),
         ),
@@ -284,98 +227,38 @@ class _AdminHomeState extends State<AdminHome> {
           const SizedBox(height: 25),
           _buildMenuGrid(),
           const SizedBox(height: 25),
-          const Text(
-            "Pemberitahuan Terbaru",
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
+          const Text("Pemberitahuan Terbaru", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 15),
-
           Builder(
             builder: (context) {
-              final visibleNotifs = dynamicNotifs
-                  .where(
-                    (n) =>
-                        !hiddenNotifIds.contains(n['id_pelanggan'].toString()),
-                  )
-                  .toList();
-
+              final visibleNotifs = dynamicNotifs.where((n) => !hiddenNotifIds.contains(n['id_pelanggan'].toString())).toList();
               if (visibleNotifs.isEmpty) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text(
-                      "Belum ada aktivitas baru",
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ),
-                );
+                return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("Belum ada aktivitas baru", style: TextStyle(fontSize: 12, color: Colors.grey))));
               }
-
               return Column(
                 children: visibleNotifs.map((n) {
-                  // --- PEMBUNGKUS INKWELL UNTUK KLIK DETAIL ---
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 10),
                     child: InkWell(
-                      onTap: () =>
-                          _showDetailDialog(n), // Trigger pop-up detail
+                      onTap: () => _showDetailDialog(n),
                       borderRadius: BorderRadius.circular(20),
                       child: Container(
                         padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.02),
-                              blurRadius: 10,
-                            ),
-                          ],
-                        ),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)]),
                         child: Row(
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.notifications_none,
-                                color: Colors.blue,
-                              ),
-                            ),
+                            Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.notifications_none, color: Colors.blue)),
                             const SizedBox(width: 15),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    "${n['teknisi']} ${n['aksi']}",
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  Text(
-                                    "Agenda: ${n['id_pelanggan']} - ${n['nama_pelanggan']}",
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey,
-                                    ),
-                                  ),
+                                  Text("${n['teknisi']} ${n['aksi']}", style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  Text("Agenda: ${n['id_pelanggan']} - ${n['nama_pelanggan']}", style: const TextStyle(fontSize: 12, color: Colors.grey)),
                                 ],
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.close,
-                                size: 18,
-                                color: Colors.grey,
-                              ),
-                              onPressed: () => _hideNotificationPermanently(
-                                n['id_pelanggan'].toString(),
-                              ),
-                            ),
+                            IconButton(icon: const Icon(Icons.close, size: 18, color: Colors.grey), onPressed: () => _hideNotificationPermanently(n['id_pelanggan'].toString())),
                           ],
                         ),
                       ),
@@ -390,58 +273,22 @@ class _AdminHomeState extends State<AdminHome> {
     );
   }
 
-  // Widget StatHeader, StatBox, MenuGrid sama seperti sebelumnya...
   Widget _buildStatHeader() {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF00C7E1),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: const Color(0xFF00C7E1), borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Status Pekerjaan Hari Ini",
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          const Text("Status Pekerjaan Keseluruhan", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500)),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(
-                child: _buildStatBox(
-                  Icons.check_circle_outline,
-                  stats['selesai'].toString(),
-                  "Selesai",
-                ),
-              ),
+              Expanded(child: _buildStatBox(Icons.check_circle_outline, stats['selesai'].toString(), "Selesai")),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatBox(
-                  Icons.access_time,
-                  stats['progress'].toString(),
-                  "Progress",
-                ),
-              ),
+              Expanded(child: _buildStatBox(Icons.access_time, stats['progress'].toString(), "Progress")),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildStatBox(
-                  Icons.warning_amber_rounded,
-                  stats['pending'].toString(),
-                  "Pending",
-                ),
-              ),
+              Expanded(child: _buildStatBox(Icons.warning_amber_rounded, stats['pending'].toString(), "Pending")),
             ],
           ),
         ],
@@ -452,26 +299,13 @@ class _AdminHomeState extends State<AdminHome> {
   Widget _buildStatBox(IconData icon, String value, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(15),
-      ),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(15)),
       child: Column(
         children: [
           Icon(icon, color: Colors.white, size: 28),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white, fontSize: 12),
-          ),
+          Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 12)),
         ],
       ),
     );
@@ -480,48 +314,22 @@ class _AdminHomeState extends State<AdminHome> {
   Widget _buildMenuGrid() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 8))]),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildMenuIcon(Icons.add, "Input\nPengajuan", () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (c) => const AdminScreen()),
-            ).then((_) => _refreshAllData());
+            Navigator.push(context, MaterialPageRoute(builder: (c) => const AdminScreen())).then((_) => _refreshAllData());
           }),
-          _buildMenuIcon(
-            Icons.bar_chart,
-            "Monitoring\nProgress",
-            () => setState(() => _selectedIndex = 1),
-          ),
-          _buildMenuIcon(
-            Icons.people_outline,
-            "Kelola\nTeknisi",
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (c) => const ManageTechScreen()),
-            ),
-          ),
-          _buildMenuIcon(
-            Icons.description_outlined,
-            "Laporan",
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (c) => const ReportScreen()),
-            ),
-          ),
+          _buildMenuIcon(Icons.bar_chart, "Monitoring\nProgress", () => setState(() => _selectedIndex = 1)),
+          
+          // PERBAIKAN: Hapus kata 'const' di sini
+          _buildMenuIcon(Icons.people_outline, "Kelola\nTeknisi", () {
+            Navigator.push(context, MaterialPageRoute(builder: (c) => ManageTechScreen()));
+          }),
+          
+          _buildMenuIcon(Icons.description_outlined, "Laporan", () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ReportScreen()))),
         ],
       ),
     );
@@ -534,26 +342,9 @@ class _AdminHomeState extends State<AdminHome> {
         width: 80,
         child: Column(
           children: [
-            Container(
-              height: 60,
-              width: 60,
-              decoration: BoxDecoration(
-                color: const Color(0xFF00C7E1),
-                borderRadius: BorderRadius.circular(15),
-              ),
-              child: Icon(icon, color: Colors.white, size: 28),
-            ),
+            Container(height: 60, width: 60, decoration: BoxDecoration(color: const Color(0xFF00C7E1), borderRadius: BorderRadius.circular(15)), child: Icon(icon, color: Colors.white, size: 28)),
             const SizedBox(height: 8),
-            Text(
-              label,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Colors.black54,
-                height: 1.2,
-              ),
-            ),
+            Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.black54, height: 1.2)),
           ],
         ),
       ),

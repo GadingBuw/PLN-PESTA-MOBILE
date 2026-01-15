@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart'; // Gunakan Supabase
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
 import '../models/user_model.dart';
-import '../main.dart';
 import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -16,8 +14,11 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String totalSelesai = "0";
+  bool isLoading = true;
 
-  // Warna Tema Konsisten
+  // Inisialisasi client Supabase
+  final supabase = Supabase.instance.client;
+
   final Color primaryBlue = const Color(0xFF1A56F0);
   final Color bgGrey = const Color(0xFFF0F2F5);
   final Color borderGrey = const Color(0xFFE0E4E8);
@@ -28,26 +29,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadStats();
   }
 
+  // Pengganti API get_stats PHP
   Future<void> _loadStats() async {
     try {
-      final response = await http.get(
-        Uri.parse("$baseUrl?action=get_stats&teknisi=${widget.user.username}"),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (mounted) {
-          setState(() {
-            totalSelesai = data['total_selesai'].toString();
-          });
-        }
+      // Hitung jumlah baris di tabel pesta_tasks yang statusnya 'Selesai'
+      final response = await supabase
+          .from('pesta_tasks')
+          .select('id')
+          .eq('teknisi', widget.user.username)
+          .eq('status', 'Selesai');
+
+      if (mounted) {
+        setState(() {
+          totalSelesai = (response as List).length.toString();
+          isLoading = false;
+        });
       }
     } catch (e) {
       debugPrint("Gagal load statistik: $e");
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
   Future<void> _handleLogout() async {
     try {
+      // 1. Logout dari session Supabase
+      await supabase.auth.signOut();
+
+      // 2. Hapus session lokal di SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('user_session');
 
@@ -69,199 +78,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: bgGrey,
       body: Column(
         children: [
-          // Header Profil dengan gaya Solid Blue
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.only(
-              top: 60,
-              bottom: 30,
-              left: 20,
-              right: 20,
-            ),
-            decoration: BoxDecoration(
-              color: primaryBlue,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Colors.white24,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const CircleAvatar(
-                    radius: 45,
-                    backgroundColor: Colors.white,
-                    child: Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Color(0xFF1A56F0),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  widget.user.nama.toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 5),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white12,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    "Role: ${widget.user.role.toUpperCase()}",
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
+          _buildHeader(),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                // Card Statistik Kerja
                 _buildSectionTitle("RINGKASAN PERFORMA"),
-                Container(
-                  margin: const EdgeInsets.only(top: 10, bottom: 20),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: borderGrey),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.task_alt_rounded,
-                          color: Colors.green,
-                        ),
-                      ),
-                      const SizedBox(width: 15),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Total Pekerjaan Selesai",
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              "Bulan Ini",
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text(
-                        totalSelesai,
-                        style: const TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Card Informasi Akun
+                _buildStatsCard(),
+                const SizedBox(height: 20),
                 _buildSectionTitle("INFORMASI AKUN"),
-                Container(
-                  margin: const EdgeInsets.only(top: 10),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: borderGrey),
-                  ),
-                  child: Column(
-                    children: [
-                      _buildInfoTile(
-                        Icons.alternate_email_rounded,
-                        "Username",
-                        "@${widget.user.username}",
-                      ),
-                      const Divider(height: 1, color: Color(0xFFF0F2F5)),
-                      _buildInfoTile(
-                        Icons.badge_outlined,
-                        "NIM / ID Karyawan",
-                        widget.user.nim,
-                      ),
-                      const Divider(height: 1, color: Color(0xFFF0F2F5)),
-                      _buildInfoTile(
-                        Icons.admin_panel_settings_outlined,
-                        "Hak Akses",
-                        widget.user.role,
-                      ),
-                    ],
-                  ),
-                ),
-
+                _buildInfoCard(),
                 const SizedBox(height: 30),
-
-                // Tombol Logout
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent.shade700, // Merah solid
-                      foregroundColor: Colors.white, // Teks putih
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: _handleLogout,
-                    icon: const Icon(Icons.logout_rounded, size: 20),
-                    label: const Text(
-                      "LOGOUT",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.8,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
+                _buildLogoutButton(),
               ],
             ),
           ),
@@ -270,16 +98,126 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.bold,
-        color: Colors.blueGrey,
-        letterSpacing: 1,
+  // --- WIDGET COMPONENTS ---
+
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 60, bottom: 30, left: 20, right: 20),
+      decoration: BoxDecoration(
+        color: primaryBlue,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+            child: CircleAvatar(
+              radius: 45,
+              backgroundColor: Colors.white,
+              child: Icon(Icons.person, size: 50, color: primaryBlue),
+            ),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            widget.user.nama.toUpperCase(),
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(20)),
+            child: Text(
+              "Role: ${widget.user.role.toUpperCase()}",
+              style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
       ),
     );
+  }
+
+  Widget _buildStatsCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 10, bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderGrey),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.task_alt_rounded, color: Colors.green),
+          ),
+          const SizedBox(width: 15),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Total Pekerjaan Selesai", style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500)),
+                Text("Akumulasi Tugas", style: TextStyle(fontSize: 11, color: Colors.grey)),
+              ],
+            ),
+          ),
+          isLoading 
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : Text(totalSelesai, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderGrey),
+      ),
+      child: Column(
+        children: [
+          _buildInfoTile(Icons.alternate_email_rounded, "Username", "@${widget.user.username}"),
+          const Divider(height: 1, color: Color(0xFFF0F2F5)),
+          // Ganti nim menjadi properti yang ada di UserModel Anda (misal username)
+          _buildInfoTile(Icons.badge_outlined, "ID Pengguna", widget.user.username),
+          const Divider(height: 1, color: Color(0xFFF0F2F5)),
+          _buildInfoTile(Icons.admin_panel_settings_outlined, "Hak Akses", widget.user.role),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.redAccent.shade700,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        onPressed: _handleLogout,
+        icon: const Icon(Icons.logout_rounded, size: 20),
+        label: const Text("LOGOUT", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.8, fontSize: 14)),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1));
   }
 
   Widget _buildInfoTile(IconData icon, String label, String value) {
@@ -292,18 +230,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: const TextStyle(fontSize: 11, color: Colors.grey),
-              ),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
+              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
             ],
           ),
         ],

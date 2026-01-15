@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import '../main.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_tech_history_detail.dart';
 
 class AdminMonitoringScreen extends StatefulWidget {
@@ -13,37 +11,60 @@ class AdminMonitoringScreen extends StatefulWidget {
 }
 
 class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
-  late Future<List<dynamic>> _monitoringFuture;
+  // 1. Definisikan Stream untuk memantau tabel 'pesta_tasks'
+  late final Stream<List<Map<String, dynamic>>> _monitoringStream;
+  final supabase = Supabase.instance.client;
 
-  // Definisi Warna Tema agar Senada
   final Color primaryBlue = const Color(0xFF1A56F0);
   final Color bgGrey = const Color(0xFFF0F2F5);
   final Color borderGrey = const Color(0xFFE0E4E8);
-  final Color primaryCyan = const Color(0xFF06B6D4);
 
   @override
   void initState() {
     super.initState();
-    _monitoringFuture = fetchMonitoring();
+    // 2. Inisialisasi stream. 'id' adalah primary key tabel Anda
+    _monitoringStream = supabase
+        .from('pesta_tasks')
+        .stream(primaryKey: ['id'])
+        .order('created_at'); // Mengurutkan data di dalam stream
   }
 
-  Future<List<dynamic>> fetchMonitoring() async {
-    try {
-      final response = await http.get(
-        Uri.parse("$baseUrl?action=get_monitoring"),
-      );
-      if (response.statusCode == 200) return jsonDecode(response.body);
-      return [];
-    } catch (e) {
-      debugPrint("Gagal memuat monitoring: $e");
-      return [];
+  // 3. Fungsi pembantu untuk mengelompokkan data stream per teknisi
+  List<dynamic> _processStreamData(List<Map<String, dynamic>> allTasks) {
+    Map<String, Map<String, dynamic>> techStats = {};
+
+    for (var task in allTasks) {
+      String techName = task['teknisi'] ?? "Tanpa Nama";
+      String status = task['status'] ?? "";
+
+      if (!techStats.containsKey(techName)) {
+        techStats[techName] = {
+          'teknisi': techName,
+          'selesai': 0,
+          'pending': 0,
+          'total_tugas': 0,
+        };
+      }
+
+      techStats[techName]!['total_tugas']++;
+      if (status == 'Selesai') {
+        techStats[techName]!['selesai']++;
+      } else {
+        techStats[techName]!['pending']++;
+      }
     }
+
+    return techStats.values.map((data) {
+      int pending = data['pending'];
+      data['kapasitas'] = (pending >= 5) ? "Jadwal Penuh" : "Tersedia";
+      return data;
+    }).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: bgGrey, // Menggunakan abu-abu bersih
+      backgroundColor: bgGrey,
       appBar: AppBar(
         backgroundColor: primaryBlue,
         elevation: 0,
@@ -60,59 +81,46 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Monitoring",
-              style: TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-            Text(
-              "Progress Global Teknisi",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text("Monitoring", style: TextStyle(color: Colors.white70, fontSize: 12)),
+            Text("Progress Global Teknisi", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
-      body: FutureBuilder<List<dynamic>>(
-        future: _monitoringFuture,
+      // 4. Gunakan StreamBuilder sebagai pengganti FutureBuilder
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: _monitoringStream,
         builder: (context, snapshot) {
+          // Tampilan saat loading data pertama kali
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final listData = snapshot.data ?? [];
+          // Tampilan jika error
+          if (snapshot.hasError) {
+            return Center(child: Text("Terjadi kesalahan realtime: ${snapshot.error}"));
+          }
 
-          return RefreshIndicator(
-            onRefresh: () async => setState(() {
-              _monitoringFuture = fetchMonitoring();
-            }),
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                const Text(
-                  "Status Petugas Lapangan",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF444444),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  "Klik kartu untuk melihat rincian tugas aktif",
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-                const SizedBox(height: 20),
-                if (listData.isEmpty)
-                  _buildEmptyState()
-                else
-                  ...listData
-                      .map((data) => _buildTechnicianCard(data))
-                      .toList(),
-              ],
-            ),
+          // Proses data mentah dari stream menjadi daftar teknisi
+          final List<dynamic> listData = _processStreamData(snapshot.data ?? []);
+
+          return ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              const Text("Status Petugas Lapangan", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF444444))),
+              const SizedBox(height: 4),
+              const Row(
+                children: [
+                  Icon(Icons.bolt, size: 12, color: Colors.green),
+                  SizedBox(width: 4),
+                  Text("Data diperbarui secara otomatis (Realtime)", style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              if (listData.isEmpty)
+                _buildEmptyState()
+              else
+                ...listData.map((data) => _buildTechnicianCard(data)).toList(),
+            ],
           );
         },
       ),
@@ -120,146 +128,90 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
   }
 
   Widget _buildTechnicianCard(Map<String, dynamic> data) {
-    int selesai = int.tryParse(data['selesai'].toString()) ?? 0;
-    int pending = int.tryParse(data['pending'].toString()) ?? 0;
-    int total = int.tryParse(data['total_tugas'].toString()) ?? 0;
-    String statusKapasitas = data['kapasitas'] ?? "Tersedia";
+    int selesai = data['selesai'];
+    int total = data['total_tugas'];
+    int pending = data['pending'];
+    String statusKapasitas = data['kapasitas'];
     double progressPercent = total > 0 ? selesai / total : 0.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderGrey)),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderGrey), // Menggunakan border halus
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (c) => AdminTechHistoryDetail(
-                  username: data['teknisi'],
-                  nama: data['teknisi'],
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (c) => AdminTechHistoryDetail(
+                username: data['teknisi'],
+                nama: data['teknisi'],
+              ),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: primaryBlue.withOpacity(0.1), shape: BoxShape.circle),
+                    child: Icon(Icons.engineering_rounded, color: primaryBlue, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(data['teknisi'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8, height: 8,
+                              decoration: BoxDecoration(shape: BoxShape.circle, color: statusKapasitas == "Jadwal Penuh" ? Colors.red : Colors.green),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(statusKapasitas, style: TextStyle(color: statusKapasitas == "Jadwal Penuh" ? Colors.red : Colors.green, fontSize: 11, fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Progress Pengerjaan", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text("${(progressPercent * 100).toInt()}%", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryBlue)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: progressPercent,
+                  backgroundColor: const Color(0xFFF0F2F5),
+                  valueColor: AlwaysStoppedAnimation<Color>(progressPercent == 1.0 ? Colors.green : primaryBlue),
+                  minHeight: 8,
                 ),
               ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: primaryBlue.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.engineering_rounded,
-                        color: primaryBlue,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            data['teknisi'] ?? "Tanpa Nama",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: statusKapasitas == "Jadwal Penuh"
-                                      ? Colors.red
-                                      : Colors.green,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                statusKapasitas,
-                                style: TextStyle(
-                                  color: statusKapasitas == "Jadwal Penuh"
-                                      ? Colors.red
-                                      : Colors.green,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right,
-                      color: Colors.grey,
-                      size: 20,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Progress Bar Section
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      "Progress Pengerjaan",
-                      style: TextStyle(fontSize: 11, color: Colors.grey),
-                    ),
-                    Text(
-                      "${(progressPercent * 100).toInt()}%",
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: primaryBlue,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: progressPercent,
-                    backgroundColor: const Color(0xFFF0F2F5),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      progressPercent == 1.0 ? Colors.green : primaryBlue,
-                    ),
-                    minHeight: 8,
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Stats Box
-                Row(
-                  children: [
-                    _buildStatTile("SELESAI", selesai, Colors.green),
-                    const SizedBox(width: 12),
-                    _buildStatTile("ANTRIAN", pending, Colors.orange),
-                  ],
-                ),
-              ],
-            ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  _buildStatTile("SELESAI", selesai, Colors.green),
+                  const SizedBox(width: 12),
+                  _buildStatTile("ANTRIAN", pending, Colors.orange),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -270,31 +222,12 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color.withOpacity(0.1)),
-        ),
+        decoration: BoxDecoration(color: color.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(0.1))),
         child: Column(
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
-            ),
+            Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
             const SizedBox(height: 2),
-            Text(
-              value.toString(),
-              style: TextStyle(
-                color: color,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(value.toString(), style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -302,16 +235,13 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Column(
         children: [
-          const SizedBox(height: 40),
-          Icon(Icons.monitor_heart_outlined, size: 60, color: Colors.grey[300]),
-          const SizedBox(height: 10),
-          const Text(
-            "Belum ada data penugasan.",
-            style: TextStyle(color: Colors.grey),
-          ),
+          SizedBox(height: 40),
+          Icon(Icons.monitor_heart_outlined, size: 60, color: Colors.grey),
+          SizedBox(height: 10),
+          Text("Belum ada data penugasan.", style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
