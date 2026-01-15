@@ -18,6 +18,10 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
   File? _img;
   bool _loading = false;
 
+  final Color primaryBlue = const Color(0xFF1A56F0);
+  final Color bgGrey = const Color(0xFFF0F2F5);
+  final Color borderGrey = const Color(0xFFE0E4E8);
+
   Future<void> _submit() async {
     if (_img == null) {
       ScaffoldMessenger.of(
@@ -56,9 +60,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
       req.fields['current_status'] = status;
       req.files.add(await http.MultipartFile.fromPath('foto', _img!.path));
       var res = await req.send();
-      if (res.statusCode == 200) {
-        Navigator.pop(context);
-      }
+      if (res.statusCode == 200) Navigator.pop(context);
     } catch (e) {
       debugPrint("Error: $e");
     } finally {
@@ -68,36 +70,48 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool isCompleted = widget.taskData['status'] == 'Selesai';
+    // --- LOGIKA STATUS ---
+    bool isSelesai = widget.taskData['status'] == 'Selesai';
     bool isBongkar = widget.taskData['status'].toString().contains(
       'Pembongkaran',
     );
+
+    // Centang Pasang: Jika sedang fase bongkar ATAU sudah selesai total
+    bool checkPasang = isBongkar || isSelesai;
+    // Centang Bongkar: Hanya jika sudah selesai total
+    bool checkBongkar = isSelesai;
+
     LatLng loc = LatLng(
       double.tryParse(widget.taskData['latitude'].toString()) ?? -8.2045,
       double.tryParse(widget.taskData['longitude'].toString()) ?? 111.0921,
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FB),
+      backgroundColor: bgGrey,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
+          icon: Icon(Icons.arrow_back_ios_new, color: primaryBlue, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Eksekusi Penugasan",
-              style: TextStyle(color: Colors.grey, fontSize: 11),
+              "EKSEKUSI PENUGASAN",
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 10,
+                letterSpacing: 1,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Text(
               "Agenda: ${widget.taskData['id_pelanggan']}",
               style: const TextStyle(
                 color: Colors.black,
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -109,50 +123,61 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              color: const Color(0xFF1A56F0),
+              padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
+              decoration: BoxDecoration(
+                color: primaryBlue,
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
+              ),
               child: Column(
                 children: [
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                      horizontal: 16,
+                      vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.orange,
+                      color: Colors.white.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      isBongkar ? "FASE PEMBONGKARAN" : "FASE PEMASANGAN",
+                      isSelesai
+                          ? "PENUGASAN SELESAI"
+                          : (isBongkar
+                                ? "FASE PEMBONGKARAN"
+                                : "FASE PEMASANGAN"),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       _buildStepItem(
-                        "Mulai",
+                        "RENCANA PASANG",
                         widget.taskData['tgl_pasang'],
-                        true,
+                        checkPasang,
                       ),
                       Expanded(
                         child: Container(
                           height: 2,
-                          color: isBongkar
+                          color: checkBongkar
                               ? Colors.greenAccent
                               : Colors.white24,
-                          margin: const EdgeInsets.symmetric(horizontal: 10),
+                          margin: const EdgeInsets.symmetric(horizontal: 15),
                         ),
                       ),
                       _buildStepItem(
-                        "Selesai",
+                        "RENCANA BONGKAR",
                         widget.taskData['tgl_bongkar'],
-                        isBongkar,
+                        checkBongkar,
                       ),
                     ],
                   ),
@@ -163,34 +188,29 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  _buildSectionCard("Informasi PESTA (Sesuai Dokumen)", [
+                  _buildSectionCard("INFORMASI PELANGGAN", [
                     _buildInfoRow(
-                      Icons.assignment_outlined,
-                      "Nomor Agenda",
-                      widget.taskData['id_pelanggan'],
-                    ),
-                    _buildInfoRow(
-                      Icons.person_outline,
+                      Icons.person_pin_rounded,
                       "Nama Pemohon",
                       widget.taskData['nama_pelanggan'],
                     ),
                     _buildInfoRow(
-                      Icons.location_on_outlined,
-                      "Alamat Lokasi",
+                      Icons.map_rounded,
+                      "Alamat Lengkap",
                       widget.taskData['alamat'],
                     ),
                     _buildInfoRow(
-                      Icons.bolt,
+                      Icons.bolt_rounded,
                       "Daya Terpasang",
                       "${widget.taskData['daya']} VA",
                     ),
                   ]),
-                  const SizedBox(height: 20),
-                  _buildSectionCard("Lokasi Proyek", [
-                    SizedBox(
-                      height: 200,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(15),
+                  const SizedBox(height: 16),
+                  _buildSectionCard("TITIK LOKASI", [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: SizedBox(
+                        height: 200,
                         child: FlutterMap(
                           options: MapOptions(
                             initialCenter: loc,
@@ -205,12 +225,12 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                               markers: [
                                 Marker(
                                   point: loc,
-                                  width: 40,
-                                  height: 40,
-                                  child: const Icon(
-                                    Icons.location_on,
-                                    color: Colors.red,
-                                    size: 40,
+                                  width: 45,
+                                  height: 45,
+                                  child: Icon(
+                                    Icons.location_on_rounded,
+                                    color: primaryBlue,
+                                    size: 45,
                                   ),
                                 ),
                               ],
@@ -219,25 +239,26 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Center(
                       child: Text(
                         "Koordinat: ${loc.latitude}, ${loc.longitude}",
                         style: const TextStyle(
                           fontSize: 10,
                           color: Colors.grey,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
                   ]),
-                  const SizedBox(height: 20),
-                  if (!isCompleted)
-                    _buildSectionCard("Konfirmasi Penyelesaian", [
+                  const SizedBox(height: 16),
+                  if (!isSelesai)
+                    _buildSectionCard("BUKTI PEKERJAAN", [
                       const Text(
-                        "Ambil foto sebagai bukti pengerjaan lapangan.",
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                        "Unggah foto dokumentasi pekerjaan di lapangan.",
+                        style: TextStyle(fontSize: 12, color: Colors.black54),
                       ),
-                      const SizedBox(height: 15),
+                      const SizedBox(height: 20),
                       GestureDetector(
                         onTap: () async {
                           final p = await ImagePicker().pickImage(
@@ -248,26 +269,28 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                         },
                         child: Container(
                           width: double.infinity,
-                          height: 180,
+                          height: 200,
                           decoration: BoxDecoration(
-                            color: Colors.grey[50],
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(15),
-                            border: Border.all(color: Colors.grey.shade300),
+                            border: Border.all(color: borderGrey, width: 2),
                           ),
                           child: _img == null
-                              ? const Column(
+                              ? Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Icon(
-                                      Icons.camera_enhance_outlined,
-                                      size: 40,
-                                      color: Colors.grey,
+                                      Icons.camera_enhance_rounded,
+                                      size: 48,
+                                      color: primaryBlue.withOpacity(0.5),
                                     ),
+                                    const SizedBox(height: 12),
                                     Text(
-                                      "Klik untuk Kamera",
+                                      "Klik untuk Ambil Foto",
                                       style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 12,
+                                        color: primaryBlue,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                   ],
@@ -286,22 +309,33 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF00C853),
                             foregroundColor: Colors.white,
+                            elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                           onPressed: _loading ? null : _submit,
                           child: _loading
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white,
+                              ? const SizedBox(
+                                  height: 24,
+                                  width: 24,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  ),
                                 )
                               : const Text(
-                                  "KONFIRMASI SELESAI",
-                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                  "KONFIRMASI PENYELESAIAN",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    letterSpacing: 0.5,
+                                  ),
                                 ),
                         ),
                       ),
                     ]),
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -313,51 +347,80 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
 
   Widget _buildStepItem(String label, String? date, bool isActive) => Column(
     children: [
-      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10)),
+      Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white70,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(height: 4),
       Text(
         date ?? "-",
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 10,
+          fontSize: 11,
           fontWeight: FontWeight.bold,
         ),
       ),
-      const SizedBox(height: 8),
-      Icon(
-        Icons.check_circle,
-        color: isActive ? Colors.greenAccent : Colors.white24,
-        size: 20,
+      const SizedBox(height: 10),
+      Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: isActive ? Colors.white : Colors.white24,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          Icons.check_rounded,
+          color: isActive ? primaryBlue : Colors.transparent,
+          size: 16,
+        ),
       ),
     ],
   );
+
   Widget _buildSectionCard(String title, List<Widget> children) => Container(
     width: double.infinity,
     padding: const EdgeInsets.all(20),
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: borderGrey),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: Colors.blue,
+            fontSize: 12,
+            color: primaryBlue,
+            letterSpacing: 0.8,
           ),
         ),
-        const Divider(height: 25),
+        const SizedBox(height: 15),
+        const Divider(height: 1, thickness: 1),
+        const SizedBox(height: 20),
         ...children,
       ],
     ),
   );
+
   Widget _buildInfoRow(IconData icon, String label, String? value) => Padding(
-    padding: const EdgeInsets.only(bottom: 15),
+    padding: const EdgeInsets.only(bottom: 18),
     child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 20, color: Colors.blue),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: primaryBlue.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 20, color: primaryBlue),
+        ),
         const SizedBox(width: 15),
         Expanded(
           child: Column(
@@ -365,13 +428,18 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
             children: [
               Text(
                 label,
-                style: const TextStyle(color: Colors.grey, fontSize: 11),
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+              const SizedBox(height: 3),
               Text(
                 value ?? "-",
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 13,
+                  fontSize: 14,
                   color: Colors.black87,
                 ),
               ),

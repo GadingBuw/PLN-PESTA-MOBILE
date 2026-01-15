@@ -19,25 +19,22 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _checkSession(); // Cek apakah sudah pernah login sebelumnya
+    _checkSession();
   }
 
-  // Fungsi untuk mengecek sesi login yang tersimpan (Auto-Login)
   Future<void> _checkSession() async {
     final prefs = await SharedPreferences.getInstance();
     final String? savedUsername = prefs.getString('user_session');
 
     if (savedUsername != null) {
       try {
-        // Cari data user dari listUser lokal berdasarkan username yang disimpan
         final user = listUser.firstWhere((x) => x.username == savedUsername);
-
         if (mounted) {
           _navigateToHome(user);
         }
         return;
       } catch (e) {
-        // Jika user tidak ditemukan di listUser, biarkan tetap di halaman login
+        debugPrint("Session user not found");
       }
     }
 
@@ -48,12 +45,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void login() async {
     try {
-      // Validasi login terhadap listUser statis
       final user = listUser.firstWhere(
         (x) => x.username == u.text && x.password == p.text,
       );
 
-      // SIMPAN SESSION: Menyimpan username secara permanen di HP
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('user_session', user.username);
 
@@ -62,7 +57,10 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Username atau Password Salah!")),
+        const SnackBar(
+          content: Text("Username atau Password Salah!"),
+          backgroundColor: Colors.redAccent,
+        ),
       );
     }
   }
@@ -98,16 +96,26 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             children: [
               const SizedBox(height: 100),
-              // Logo PLN
+
+              // --- LOGO PLN OFFLINE (ASSET) ---
               Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  color: Colors.yellow,
-                  borderRadius: BorderRadius.circular(15),
+                width: 100,
+                height: 100,
+                padding: const EdgeInsets.all(8),
+                child: ClipRRect(
+                  // Tambahkan ini untuk melengkungkan sudut gambar
+                  borderRadius: BorderRadius.circular(
+                    15,
+                  ), // Radius 15 sesuai permintaan
+                  child: Image.asset(
+                    'assets/images/logo_pln.png',
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.bolt, size: 60, color: Colors.red),
+                  ),
                 ),
-                child: const Icon(Icons.bolt, size: 70, color: Colors.red),
               ),
+
               const SizedBox(height: 15),
               const Text(
                 "PESTA MOBILE",
@@ -115,6 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   fontSize: 26,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
+                  letterSpacing: 1.2,
                 ),
               ),
               const Text(
@@ -147,8 +156,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: InputDecoration(
                           hintText: "Username",
                           prefixIcon: const Icon(Icons.person_outline),
+                          filled: true,
+                          fillColor: const Color(0xFFF5F5F5),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide.none,
                           ),
                         ),
                       ),
@@ -159,8 +171,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         decoration: InputDecoration(
                           hintText: "Password",
                           prefixIcon: const Icon(Icons.lock_outline),
+                          filled: true,
+                          fillColor: const Color(0xFFF5F5F5),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(15),
+                            borderSide: BorderSide.none,
                           ),
                         ),
                       ),
@@ -172,14 +187,15 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: login,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF1A56F0),
+                            foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(15),
                             ),
+                            elevation: 0,
                           ),
                           child: const Text(
                             "MASUK",
                             style: TextStyle(
-                              color: Colors.white,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
@@ -195,6 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 "© 2026 PLN ULP Pacitan",
                 style: TextStyle(color: Colors.white54, fontSize: 11),
               ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

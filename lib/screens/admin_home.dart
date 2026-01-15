@@ -222,15 +222,17 @@ class _AdminHomeState extends State<AdminHome> {
       backgroundColor: Colors.white,
       elevation: 0,
       leading: Padding(
-        padding: const EdgeInsets.all(10.0),
-        child: Image.network(
-          'https://upload.wikimedia.org/wikipedia/commons/9/97/Logo_PLN.png',
-          errorBuilder: (context, error, stackTrace) => Container(
-            decoration: BoxDecoration(
-              color: Colors.yellow,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(Icons.bolt, color: Colors.red),
+        padding: const EdgeInsets.all(8),
+        child: ClipRRect(
+          // Tambahkan ini untuk melengkungkan sudut gambar
+          borderRadius: BorderRadius.circular(
+            15,
+          ), // Radius 15 sesuai permintaan
+          child: Image.asset(
+            'assets/images/logo_pln.png',
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) =>
+                const Icon(Icons.bolt, size: 60, color: Colors.red),
           ),
         ),
       ),

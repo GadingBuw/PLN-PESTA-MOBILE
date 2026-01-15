@@ -119,13 +119,18 @@ class _TechHomeState extends State<TechHome> {
       backgroundColor: Colors.white,
       elevation: 0,
       leading: Padding(
-        padding: const EdgeInsets.all(10.0),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.yellow,
-            borderRadius: BorderRadius.circular(8),
+        padding: const EdgeInsets.all(8),
+        child: ClipRRect(
+          // Tambahkan ini untuk melengkungkan sudut gambar
+          borderRadius: BorderRadius.circular(
+            15,
+          ), // Radius 15 sesuai permintaan
+          child: Image.asset(
+            'assets/images/logo_pln.png',
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) =>
+                const Icon(Icons.bolt, size: 60, color: Colors.red),
           ),
-          child: const Icon(Icons.bolt, color: Colors.red, size: 20),
         ),
       ),
       title: Column(

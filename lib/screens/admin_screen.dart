@@ -18,24 +18,34 @@ class _AdminScreenState extends State<AdminScreen> {
   final idPelCtrl = TextEditingController();
   final namaCtrl = TextEditingController();
   final alamatCtrl = TextEditingController();
-  final dayaCtrl = TextEditingController();
   final MapController _mapController = MapController();
 
   DateTime? tglP;
   DateTime? tglB;
   LatLng _selectedLocation = const LatLng(-6.2000, 106.8166);
   String? selectedTeknisi;
+  String? selectedDaya; // Variabel penampung daya dropdown
   List<UserModel> availableTeknisi = [];
   bool isLoadingTeknisi = false;
   bool isSearching = false;
 
-  // Warna Bertema Abu-abu & Biru
+  // Daftar Pilihan Daya (Minimum 5500 VA)
+  final List<String> dayaOptions = [
+    "5500",
+    "7700",
+    "10600",
+    "13200",
+    "16500",
+    "23000",
+    "33000",
+    "41500",
+    "53000",
+  ];
+
   final Color primaryBlue = const Color(0xFF1A56F0);
-  final Color bgGrey = const Color(0xFFF0F2F5); // Background utama abu-abu
-  final Color inputGrey = const Color(
-    0xFFF8F9FA,
-  ); // Background input abu-abu sangat muda
-  final Color borderGrey = const Color(0xFFE0E4E8); // Warna border halus
+  final Color bgGrey = const Color(0xFFF0F2F5);
+  final Color inputGrey = const Color(0xFFF8F9FA);
+  final Color borderGrey = const Color(0xFFE0E4E8);
 
   Future<void> _searchFromAddress() async {
     if (alamatCtrl.text.isEmpty) return;
@@ -107,7 +117,8 @@ class _AdminScreenState extends State<AdminScreen> {
     if (tglP == null ||
         tglB == null ||
         idPelCtrl.text.isEmpty ||
-        selectedTeknisi == null) {
+        selectedTeknisi == null ||
+        selectedDaya == null) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text("Lengkapi semua data!")));
@@ -125,7 +136,7 @@ class _AdminScreenState extends State<AdminScreen> {
           'id_pelanggan': idPelCtrl.text,
           'nama_pelanggan': namaCtrl.text,
           'alamat': alamatCtrl.text,
-          'daya': dayaCtrl.text,
+          'daya': selectedDaya, // Mengambil data dari variabel dropdown
           'tgl_pasang': DateFormat('yyyy-MM-dd').format(tglP!),
           'tgl_bongkar': DateFormat('yyyy-MM-dd').format(tglB!),
           'teknisi': selectedTeknisi,
@@ -170,7 +181,6 @@ class _AdminScreenState extends State<AdminScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // SEKSI 1: INFORMASI PELANGGAN
             _buildSectionCard(
               icon: Icons.person_outline,
               title: "Informasi Pelanggan",
@@ -181,13 +191,22 @@ class _AdminScreenState extends State<AdminScreen> {
                 _buildLabel("Nama Pelanggan"),
                 _buildTextField(namaCtrl, "Nama lengkap pelanggan"),
                 const SizedBox(height: 16),
-                _buildLabel("Daya (VA)"),
-                _buildTextField(dayaCtrl, "Contoh: 900", isNumber: true),
+                _buildLabel("Pilih Daya (VA)"),
+                DropdownButtonFormField<String>(
+                  value: selectedDaya,
+                  hint: const Text("Pilih besaran daya"),
+                  decoration: _inputDecoration("Minimum 5500 VA"),
+                  items: dayaOptions.map((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text("$value VA"),
+                    );
+                  }).toList(),
+                  onChanged: (val) => setState(() => selectedDaya = val),
+                ),
               ],
             ),
             const SizedBox(height: 16),
-
-            // SEKSI 2: PENJADWALAN & TEKNISI
             _buildSectionCard(
               icon: Icons.calendar_month_outlined,
               title: "Penjadwalan & Teknisi",
@@ -263,8 +282,6 @@ class _AdminScreenState extends State<AdminScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // SEKSI 3: LOKASI PEMASANGAN
             _buildSectionCard(
               icon: Icons.map_outlined,
               title: "Lokasi Pemasangan",
@@ -339,7 +356,6 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // --- UI Components ---
   Widget _buildMapOverlayTip() {
     return Positioned(
       top: 10,
@@ -409,7 +425,7 @@ class _AdminScreenState extends State<AdminScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderGrey), // Border abu-abu halus
+        border: Border.all(color: borderGrey),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -490,7 +506,7 @@ class _AdminScreenState extends State<AdminScreen> {
       hintText: hint,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       filled: true,
-      fillColor: inputGrey, // Warna input abu-abu muda
+      fillColor: inputGrey,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: borderGrey),
