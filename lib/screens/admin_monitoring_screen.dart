@@ -81,8 +81,18 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Monitoring", style: TextStyle(color: Colors.white70, fontSize: 12)),
-            Text("Progress Global Teknisi", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              "Monitoring",
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            Text(
+              "Progress Global Teknisi",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -97,22 +107,40 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
 
           // Tampilan jika error
           if (snapshot.hasError) {
-            return Center(child: Text("Terjadi kesalahan realtime: ${snapshot.error}"));
+            return Center(
+              child: Text("Terjadi kesalahan realtime: ${snapshot.error}"),
+            );
           }
 
           // Proses data mentah dari stream menjadi daftar teknisi
-          final List<dynamic> listData = _processStreamData(snapshot.data ?? []);
+          final List<dynamic> listData = _processStreamData(
+            snapshot.data ?? [],
+          );
 
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
-              const Text("Status Petugas Lapangan", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF444444))),
+              const Text(
+                "Status Petugas Lapangan",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF444444),
+                ),
+              ),
               const SizedBox(height: 4),
               const Row(
                 children: [
                   Icon(Icons.bolt, size: 12, color: Colors.green),
                   SizedBox(width: 4),
-                  Text("Data diperbarui secara otomatis (Realtime)", style: TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold)),
+                  Text(
+                    "Data diperbarui secara otomatis (Realtime)",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 20),
@@ -136,7 +164,11 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderGrey)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderGrey),
+      ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
@@ -144,8 +176,8 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
             context,
             MaterialPageRoute(
               builder: (c) => AdminTechHistoryDetail(
-                username: data['teknisi'],
-                nama: data['teknisi'],
+                username: data['teknisi'] ?? '',
+                nama: data['teknisi'] ?? '',
               ),
             ),
           );
@@ -159,24 +191,52 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: primaryBlue.withOpacity(0.1), shape: BoxShape.circle),
-                    child: Icon(Icons.engineering_rounded, color: primaryBlue, size: 24),
+                    decoration: BoxDecoration(
+                      color: primaryBlue.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.engineering_rounded,
+                      color: primaryBlue,
+                      size: 24,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(data['teknisi'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        Text(
+                          data['teknisi'],
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         Row(
                           children: [
                             Container(
-                              width: 8, height: 8,
-                              decoration: BoxDecoration(shape: BoxShape.circle, color: statusKapasitas == "Jadwal Penuh" ? Colors.red : Colors.green),
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: statusKapasitas == "Jadwal Penuh"
+                                    ? Colors.red
+                                    : Colors.green,
+                              ),
                             ),
                             const SizedBox(width: 6),
-                            Text(statusKapasitas, style: TextStyle(color: statusKapasitas == "Jadwal Penuh" ? Colors.red : Colors.green, fontSize: 11, fontWeight: FontWeight.w600)),
+                            Text(
+                              statusKapasitas,
+                              style: TextStyle(
+                                color: statusKapasitas == "Jadwal Penuh"
+                                    ? Colors.red
+                                    : Colors.green,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -189,8 +249,18 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Progress Pengerjaan", style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  Text("${(progressPercent * 100).toInt()}%", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryBlue)),
+                  const Text(
+                    "Progress Pengerjaan",
+                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                  Text(
+                    "${(progressPercent * 100).toInt()}%",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: primaryBlue,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -199,7 +269,9 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
                 child: LinearProgressIndicator(
                   value: progressPercent,
                   backgroundColor: const Color(0xFFF0F2F5),
-                  valueColor: AlwaysStoppedAnimation<Color>(progressPercent == 1.0 ? Colors.green : primaryBlue),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    progressPercent == 1.0 ? Colors.green : primaryBlue,
+                  ),
                   minHeight: 8,
                 ),
               ),
@@ -222,12 +294,31 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        decoration: BoxDecoration(color: color.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: color.withOpacity(0.1))),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.1)),
+        ),
         child: Column(
           children: [
-            Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
             const SizedBox(height: 2),
-            Text(value.toString(), style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              value.toString(),
+              style: TextStyle(
+                color: color,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
       ),
@@ -241,7 +332,10 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
           SizedBox(height: 40),
           Icon(Icons.monitor_heart_outlined, size: 60, color: Colors.grey),
           SizedBox(height: 10),
-          Text("Belum ada data penugasan.", style: TextStyle(color: Colors.grey)),
+          Text(
+            "Belum ada data penugasan.",
+            style: TextStyle(color: Colors.grey),
+          ),
         ],
       ),
     );

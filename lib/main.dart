@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// Hapus http karena kita akan menggunakan SDK Supabase
-import 'package:supabase_flutter/supabase_flutter.dart'; 
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'services/notification_service.dart';
 import 'screens/login_screen.dart';
 
 // Masukkan URL dan Anon Key dari dashboard Supabase Anda (Project Settings > API)
-const String supabaseUrl = 'https://vzupgvjbmllwudoenuxp.supabase.co'; 
-const String supabaseKey = 'sb_publishable_0chiXdXnRJZB4l6VKTU1ww_myomOLhP'; 
+const String supabaseUrl = 'https://vzupgvjbmllwudoenuxp.supabase.co';
+const String supabaseKey = 'sb_publishable_0chiXdXnRJZB4l6VKTU1ww_myomOLhP';
 
 @pragma('vm:entry-point')
 void callbackDispatcher() {
@@ -69,10 +68,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 1. Inisialisasi Supabase di awal aplikasi
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseKey,
-  );
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
 
   await initializeDateFormatting('id_ID', null);
   await NotificationService.initializeNotification();
