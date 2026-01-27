@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'admin_edit_task_screen.dart';
+import '../services/pdf_service.dart';
 
 class AdminTaskMonitoringDetail extends StatefulWidget {
   final Map taskData;
@@ -23,6 +24,55 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
     return Supabase.instance.client.storage
         .from('task-photos')
         .getPublicUrl("$folder/$fileName");
+  }
+
+  // Dialog untuk Input Data Suplisi sebelum Cetak
+  void _showSuplisiInputDialog() {
+    final kwhTotalCtrl = TextEditingController(text: "1055");
+    final kwhBayarCtrl = TextEditingController(text: "500");
+    final hargaCtrl = TextEditingController(text: "1973.42");
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Input Parameter Suplisi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildDialogField(kwhTotalCtrl, "Total KWH Terpakai (Pesta)", "kWh"),
+            _buildDialogField(kwhBayarCtrl, "KWH Sudah Terbayar (Awal)", "kWh"),
+            _buildDialogField(hargaCtrl, "Harga per KWH (Rp)", "Rp"),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700),
+            onPressed: () {
+              Navigator.pop(context);
+              PdfService.generateSuplisiPdf(
+                taskData: widget.taskData,
+                totalKwhPesta: double.tryParse(kwhTotalCtrl.text) ?? 0,
+                kwhSudahTerbayar: double.tryParse(kwhBayarCtrl.text) ?? 0,
+                hargaPerKwh: double.tryParse(hargaCtrl.text) ?? 0,
+              );
+            },
+            child: const Text("CETAK PDF", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDialogField(TextEditingController ctrl, String label, String suffix) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextField(
+        controller: ctrl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(labelText: label, suffixText: suffix, border: const OutlineInputBorder()),
+      ),
+    );
   }
 
   @override
@@ -58,7 +108,6 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
           ],
         ),
         actions: [
-          // Hanya menyisakan fitur Edit untuk Admin
           IconButton(
             icon: const Icon(Icons.edit_note, color: Colors.orange, size: 28),
             onPressed: () => Navigator.push(
@@ -121,6 +170,21 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
                     _buildInfoRow(Icons.person_pin_rounded, "Nama Pemohon", widget.taskData['nama_pelanggan']),
                     _buildInfoRow(Icons.map_rounded, "Alamat Lengkap", widget.taskData['alamat']),
                     _buildInfoRow(Icons.bolt_rounded, "Daya Terpasang", "${widget.taskData['daya']} VA"),
+                    const SizedBox(height: 20),
+                    // TOMBOL BARU: CETAK PDF SUPLISI
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade700,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: _showSuplisiInputDialog,
+                        icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+                        label: const Text("CETAK PDF SUPLISI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
                   ]),
                   const SizedBox(height: 16),
                   _buildSectionCard("TITIK LOKASI", [
