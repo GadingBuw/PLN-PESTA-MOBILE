@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'admin_tech_history_detail.dart';
+import 'admin_search_task_screen.dart'; // Import ditambahkan di sini
 
 class AdminMonitoringScreen extends StatefulWidget {
   final VoidCallback? onBack;
@@ -95,6 +96,21 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
             ),
           ],
         ),
+        // FITUR SEARCH DITAMBAHKAN DI SINI
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (c) => const AdminSearchTaskScreen(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       // 4. Gunakan StreamBuilder sebagai pengganti FutureBuilder
       body: StreamBuilder<List<Map<String, dynamic>>>(

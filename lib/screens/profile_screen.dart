@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Gunakan Supabase
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import 'login_screen.dart';
@@ -26,13 +26,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _loadStats();
+    // Hanya load statistik jika user BUKAN admin
+    if (widget.user.role.toLowerCase() != 'admin') {
+      _loadStats();
+    } else {
+      setState(() => isLoading = false);
+    }
   }
 
-  // Pengganti API get_stats PHP
+  // Fungsi mengambil statistik penyelesaian tugas teknisi
   Future<void> _loadStats() async {
     try {
-      // Hitung jumlah baris di tabel pesta_tasks yang statusnya 'Selesai'
       final response = await supabase
           .from('pesta_tasks')
           .select('id')
@@ -53,10 +57,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _handleLogout() async {
     try {
-      // 1. Logout dari session Supabase
       await supabase.auth.signOut();
-
-      // 2. Hapus session lokal di SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('user_session');
 
@@ -74,6 +75,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    bool isAdmin = widget.user.role.toLowerCase() == 'admin';
+
     return Scaffold(
       backgroundColor: bgGrey,
       body: Column(
@@ -83,9 +86,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _buildSectionTitle("RINGKASAN PERFORMA"),
-                _buildStatsCard(),
-                const SizedBox(height: 20),
+                // Kondisi: Hanya muncul jika BUKAN admin
+                if (!isAdmin) ...[
+                  _buildSectionTitle("RINGKASAN PERFORMA"),
+                  _buildStatsCard(),
+                  const SizedBox(height: 20),
+                ],
+                
                 _buildSectionTitle("INFORMASI AKUN"),
                 _buildInfoCard(),
                 const SizedBox(height: 30),
@@ -189,7 +196,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           _buildInfoTile(Icons.alternate_email_rounded, "Username", "@${widget.user.username}"),
           const Divider(height: 1, color: Color(0xFFF0F2F5)),
-          // Ganti nim menjadi properti yang ada di UserModel Anda (misal username)
           _buildInfoTile(Icons.badge_outlined, "ID Pengguna", widget.user.username),
           const Divider(height: 1, color: Color(0xFFF0F2F5)),
           _buildInfoTile(Icons.admin_panel_settings_outlined, "Hak Akses", widget.user.role),

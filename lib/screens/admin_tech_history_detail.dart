@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-// Import halaman detail tujuan
 import 'admin_task_monitoring_detail.dart';
 
 class AdminTechHistoryDetail extends StatefulWidget {
@@ -43,7 +42,7 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
 
       return response as List<dynamic>;
     } catch (e) {
-      debugPrint("Error Admin History: $e");
+      debugPrint("Error Fetch History: $e");
       return [];
     }
   }
@@ -65,18 +64,8 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              "MONITORING TEKNISI",
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.white70,
-                letterSpacing: 1,
-              ),
-            ),
-            Text(
-              widget.nama,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
+            const Text("MONITORING TEKNISI", style: TextStyle(fontSize: 10, color: Colors.white70, letterSpacing: 1)),
+            Text(widget.nama, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ],
         ),
         backgroundColor: primaryBlue,
@@ -93,50 +82,31 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
 
           final allData = snapshot.data ?? [];
 
-          // Logika Filter Lokal
           List<dynamic> filteredSource = allData.where((item) {
             if (_activeFilter == 'Semua') return true;
-            if (_activeFilter == 'Pemasangan')
-              return item['status'] == 'Menunggu Pemasangan';
-            if (_activeFilter == 'Pembongkaran')
-              return item['status'] == 'Menunggu Pembongkaran';
+            if (_activeFilter == 'Pemasangan') return item['status'] == 'Menunggu Pemasangan';
+            if (_activeFilter == 'Pembongkaran') return item['status'] == 'Menunggu Pembongkaran';
             return true;
           }).toList();
 
-          List<dynamic> activeTasks = filteredSource
-              .where((item) => item['status'] != 'Selesai')
-              .toList();
-          List<dynamic> completedTasks = filteredSource
-              .where((item) => item['status'] == 'Selesai')
-              .toList();
+          List<dynamic> activeTasks = filteredSource.where((item) => item['status'] != 'Selesai').toList();
+          List<dynamic> completedTasks = filteredSource.where((item) => item['status'] == 'Selesai').toList();
 
           return RefreshIndicator(
-            onRefresh: () async => setState(() {
-              _historyFuture = fetchHistory();
-            }),
+            onRefresh: () async => setState(() { _historyFuture = fetchHistory(); }),
             child: ListView(
               padding: const EdgeInsets.all(15),
               children: [
                 if (activeTasks.isNotEmpty) ...[
-                  _buildSectionTitle(
-                    _activeFilter == 'Semua'
-                        ? "PENUGASAN AKTIF"
-                        : "FILTER: $_activeFilter",
-                  ),
-                  ...activeTasks
-                      .map((task) => _buildHistoryCard(task))
-                      .toList(),
+                  _buildSectionTitle(_activeFilter == 'Semua' ? "PENUGASAN AKTIF" : "FILTER: $_activeFilter"),
+                  ...activeTasks.map((task) => _buildHistoryCard(task)).toList(),
                 ],
                 if (_activeFilter == 'Semua' && completedTasks.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   _buildSectionTitle("RIWAYAT SELESAI"),
-                  ...completedTasks
-                      .map((task) => _buildHistoryCard(task))
-                      .toList(),
+                  ...completedTasks.map((task) => _buildHistoryCard(task)).toList(),
                 ],
-                if (activeTasks.isEmpty &&
-                    (completedTasks.isEmpty || _activeFilter != 'Semua'))
-                  _buildEmptyState(),
+                if (activeTasks.isEmpty && (completedTasks.isEmpty || _activeFilter != 'Semua')) _buildEmptyState(),
               ],
             ),
           );
@@ -153,59 +123,33 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
           value: _activeFilter,
           dropdownColor: primaryBlue,
           icon: const Icon(Icons.filter_list, color: Colors.white),
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-          items: ['Semua', 'Pemasangan', 'Pembongkaran']
-              .map((val) => DropdownMenuItem(value: val, child: Text(val)))
-              .toList(),
-          onChanged: (val) {
-            if (val != null) setState(() => _activeFilter = val);
-          },
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+          items: ['Semua', 'Pemasangan', 'Pembongkaran'].map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
+          onChanged: (val) { if (val != null) setState(() => _activeFilter = val); },
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 5, bottom: 12, top: 5),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          color: Colors.blueGrey[800],
-          letterSpacing: 1.2,
-        ),
-      ),
-    );
-  }
+  Widget _buildSectionTitle(String title) => Padding(
+    padding: const EdgeInsets.only(left: 5, bottom: 12, top: 5),
+    child: Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: Colors.blueGrey[800], letterSpacing: 1.2)),
+  );
 
   Widget _buildHistoryCard(Map<String, dynamic> task) {
     bool isSelesai = task['status'] == 'Selesai';
-    Color statusColor = isSelesai
-        ? Colors.green
-        : (task['status'] == 'Menunggu Pembongkaran'
-              ? primaryBlue
-              : Colors.orange);
+    Color statusColor = isSelesai ? Colors.green : (task['status'] == 'Menunggu Pembongkaran' ? primaryBlue : Colors.orange);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderGrey),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderGrey)),
       child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (c) => AdminTaskMonitoringDetail(taskData: task),
-          ),
-        ),
+        onTap: () async {
+          // Menunggu hasil dari halaman detail
+          await Navigator.push(context, MaterialPageRoute(builder: (c) => AdminTaskMonitoringDetail(taskData: task)));
+          // Refresh data setelah kembali
+          setState(() { _historyFuture = fetchHistory(); });
+        },
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -215,59 +159,22 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    "AGENDA: ${task['id_pelanggan']}",
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: primaryBlue.withOpacity(0.8),
-                    ),
-                  ),
+                  Text("AGENDA: ${task['id_pelanggan']}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: primaryBlue.withOpacity(0.8))),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      task['status'].toUpperCase(),
-                      style: TextStyle(
-                        color: statusColor,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                    child: Text(task['status'].toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w900)),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
-                task['nama_pelanggan'] ?? "",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: Colors.black87,
-                ),
-              ),
+              Text(task['nama_pelanggan'] ?? "", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
               const SizedBox(height: 6),
               Row(
                 children: [
                   Icon(Icons.location_on_rounded, size: 14, color: primaryBlue),
                   const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      task['alamat'] ?? "",
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black54,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+                  Expanded(child: Text(task['alamat'] ?? "", style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis)),
                 ],
               ),
               const Divider(height: 28, thickness: 0.5),
@@ -277,11 +184,7 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
                   const SizedBox(width: 20),
                   _infoTile("BONGKAR", formatDate(task['tgl_bongkar'])),
                   const Spacer(),
-                  const Icon(
-                    Icons.arrow_forward_ios,
-                    size: 12,
-                    color: Colors.grey,
-                  ),
+                  const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey),
                 ],
               ),
             ],
@@ -294,23 +197,9 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
   Widget _infoTile(String label, String val) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        label,
-        style: const TextStyle(
-          fontSize: 8,
-          color: Colors.grey,
-          fontWeight: FontWeight.w600,
-        ),
-      ),
+      Text(label, style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.w600)),
       const SizedBox(height: 2),
-      Text(
-        val,
-        style: const TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          color: Colors.black87,
-        ),
-      ),
+      Text(val, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.black87)),
     ],
   );
 
