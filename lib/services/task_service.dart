@@ -4,13 +4,14 @@ import 'package:flutter/material.dart';
 class TaskService {
   final supabase = Supabase.instance.client;
 
-  // 1. Fungsi Pencarian Global (Berdasarkan ID Pelanggan atau Nama)
+  // 1. Fungsi Pencarian Global
+  // Diperbarui: Menggunakan 'no_agenda' menggantikan 'id_pelanggan'
   Future<List<dynamic>> searchTasks(String query) async {
     try {
       final response = await supabase
           .from('pesta_tasks')
           .select()
-          .or('id_pelanggan.ilike.%$query%,nama_pelanggan.ilike.%$query%')
+          .or('no_agenda.ilike.%$query%,nama_pelanggan.ilike.%$query%')
           .order('created_at', ascending: false);
       
       return response as List<dynamic>;
@@ -20,7 +21,8 @@ class TaskService {
     }
   }
 
-  // 2. Fungsi Validasi Workload (Limit 2 tugas/hari untuk teknisi tertentu)
+  // 2. Fungsi Validasi Workload (Limit 2 tugas/hari)
+  // Fitur ini tetap dipertahankan sesuai kode asli Anda
   Future<bool> isTechnicianAvailable(int currentTaskId, String techUsername, String date) async {
     try {
       // Menghitung tugas pada tgl_pasang atau tgl_bongkar yang sama
@@ -41,6 +43,7 @@ class TaskService {
   }
 
   // 3. Fungsi Update Data Penugasan
+  // Digunakan untuk simpan revisi admin maupun konfirmasi teknisi
   Future<void> updateTask(int id, Map<String, dynamic> data) async {
     try {
       await supabase.from('pesta_tasks').update(data).eq('id', id);

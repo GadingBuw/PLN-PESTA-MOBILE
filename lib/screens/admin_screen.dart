@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Menggunakan SDK Supabase
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -13,9 +13,12 @@ class AdminScreen extends StatefulWidget {
 }
 
 class _AdminScreenState extends State<AdminScreen> {
-  final idPelCtrl = TextEditingController();
+  // Controller diperbarui (idPelCtrl ganti jadi agendaCtrl + tambahan E-min & Terbayar)
+  final agendaCtrl = TextEditingController(); 
   final namaCtrl = TextEditingController();
   final alamatCtrl = TextEditingController();
+  final eMinCtrl = TextEditingController(text: "0"); // Revisi: Input E-Min
+  final kwhTerbayarCtrl = TextEditingController(text: "0"); // Revisi: Input Terbayar Awal
   final MapController _mapController = MapController();
 
   // Inisialisasi client Supabase
@@ -23,7 +26,7 @@ class _AdminScreenState extends State<AdminScreen> {
 
   DateTime? tglP;
   DateTime? tglB;
-  LatLng _selectedLocation = const LatLng(-6.2000, 106.8166);
+  LatLng _selectedLocation = const LatLng(-8.2045, 111.0921); // Default ke Pacitan
   String? selectedTeknisi;
   String? selectedDaya;
   List<UserModel> availableTeknisi = [];
@@ -31,23 +34,9 @@ class _AdminScreenState extends State<AdminScreen> {
   bool isSearching = false;
 
   final List<String> dayaOptions = [
-    "5500",
-    "6600",
-    "7700",
-    "10600",
-    "13200",
-    "16500",
-    "23000",
-    "33000",
-    "41500",
-    "53000",
-    "66000",
-    "77000",
-    "82500",
-    "105000",
-    "131000",
-    "164000",
-    "197000",
+    "5500", "6600", "7700", "10600", "13200", "16500", "23000",
+    "33000", "41500", "53000", "66000", "77000", "82500",
+    "105000", "131000", "164000", "197000",
   ];
 
   final Color primaryBlue = const Color(0xFF1A56F0);
@@ -55,7 +44,7 @@ class _AdminScreenState extends State<AdminScreen> {
   final Color inputGrey = const Color(0xFFF8F9FA);
   final Color borderGrey = const Color(0xFFE0E4E8);
 
-  // --- LOGIKA LOKASI (GEOMAPPING) ---
+  // --- LOGIKA LOKASI (GEOMAPPING) - TETAP UTUH 100% ---
   Future<void> _searchFromAddress() async {
     if (alamatCtrl.text.isEmpty) return;
     setState(() => isSearching = true);
@@ -95,7 +84,7 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  // --- LOGIKA FILTER TEKNISI (MAX 2 TUGAS PER HARI) ---
+  // --- LOGIKA FILTER TEKNISI (MAX 2 TUGAS PER HARI) - TETAP UTUH 100% ---
   Future<void> _filterTeknisi(DateTime date) async {
     setState(() {
       isLoadingTeknisi = true;
@@ -106,36 +95,29 @@ class _AdminScreenState extends State<AdminScreen> {
     try {
       String formattedDate = DateFormat('yyyy-MM-dd').format(date);
 
-      // 1. Ambil semua tugas yang ada pada tanggal pasang atau bongkar tersebut
       final responseTasks = await supabase
           .from('pesta_tasks')
           .select('teknisi, tgl_pasang, tgl_bongkar')
           .or('tgl_pasang.eq.$formattedDate,tgl_bongkar.eq.$formattedDate');
 
       final List<dynamic> tasksOnDate = responseTasks as List;
-
-      // 2. Hitung jumlah akumulasi tugas per teknisi di hari tersebut
       Map<String, int> workloadMap = {};
 
       for (var task in tasksOnDate) {
         String tech = task['teknisi'].toString();
-
         if (task['tgl_pasang'] == formattedDate) {
           workloadMap[tech] = (workloadMap[tech] ?? 0) + 1;
         }
-
         if (task['tgl_bongkar'] == formattedDate) {
           workloadMap[tech] = (workloadMap[tech] ?? 0) + 1;
         }
       }
 
-      // 3. Cari teknisi yang sudah limit (>= 2 tugas)
       final List<String> overlimitUsernames = workloadMap.entries
           .where((entry) => entry.value >= 2)
           .map((entry) => entry.key)
           .toList();
 
-      // 4. Ambil semua teknisi dari tabel 'users'
       final allTeknisiResponse = await supabase
           .from('users')
           .select()
@@ -145,7 +127,6 @@ class _AdminScreenState extends State<AdminScreen> {
           .map((u) => UserModel.fromMap(u))
           .toList();
 
-      // 5. Filter teknisi yang belum penuh (< 2 tugas)
       setState(() {
         availableTeknisi = allTeknisi
             .where((u) => !overlimitUsernames.contains(u.username))
@@ -158,11 +139,11 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  // --- SIMPAN DATA KE SUPABASE ---
+  // --- SIMPAN DATA KE SUPABASE (REVISI KOLOM DATABASE) ---
   Future<void> _kirimData() async {
     if (tglP == null ||
         tglB == null ||
-        idPelCtrl.text.isEmpty ||
+        agendaCtrl.text.isEmpty ||
         selectedTeknisi == null ||
         selectedDaya == null) {
       ScaffoldMessenger.of(
@@ -179,10 +160,14 @@ class _AdminScreenState extends State<AdminScreen> {
 
     try {
       await supabase.from('pesta_tasks').insert({
-        'id_pelanggan': idPelCtrl.text,
+        'no_agenda': agendaCtrl.text, // Perubahan kolom
         'nama_pelanggan': namaCtrl.text,
         'alamat': alamatCtrl.text,
         'daya': selectedDaya,
+        'e_min_kwh': double.tryParse(eMinCtrl.text) ?? 0, // Kolom Baru
+        'kwh_terbayar': double.tryParse(kwhTerbayarCtrl.text) ?? 0, // Kolom Baru
+        'stand_pasang': 0, // Inisialisasi awal 0
+        'stand_bongkar': 0, // Inisialisasi awal 0
         'tgl_pasang': DateFormat('yyyy-MM-dd').format(tglP!),
         'tgl_bongkar': DateFormat('yyyy-MM-dd').format(tglB!),
         'teknisi': selectedTeknisi,
@@ -230,12 +215,39 @@ class _AdminScreenState extends State<AdminScreen> {
               icon: Icons.person_outline,
               title: "Informasi Pelanggan",
               children: [
-                _buildLabel("ID Pelanggan"),
-                _buildTextField(idPelCtrl, "PLG-2024-XXX"),
+                _buildLabel("Nomor Agenda"),
+                _buildTextField(agendaCtrl, "Masukkan Nomor Agenda"),
                 const SizedBox(height: 16),
                 _buildLabel("Nama Pelanggan"),
-                _buildTextField(namaCtrl, "Nama lengkap pelanggan"),
+                _buildTextField(namaCtrl, "Nama lengkap pemohon"),
                 const SizedBox(height: 16),
+                
+                // REVISI: Penambahan Row untuk E-Min dan Terbayar
+                Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel("E Min KWH"),
+                          _buildTextField(eMinCtrl, "0", isNumber: true),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLabel("KWH Terbayar"),
+                          _buildTextField(kwhTerbayarCtrl, "0", isNumber: true),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
                 _buildLabel("Pilih Daya (VA)"),
                 DropdownButtonFormField<String>(
                   value: selectedDaya,
@@ -275,7 +287,7 @@ class _AdminScreenState extends State<AdminScreen> {
                               );
                               if (p != null) {
                                 setState(() => tglP = p);
-                                _filterTeknisi(p); // Filter berjalan otomatis
+                                _filterTeknisi(p); 
                               }
                             },
                           ),
@@ -406,7 +418,7 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // --- WIDGET HELPERS ---
+  // --- SEMUA WIDGET HELPERS ASLI ANDA TETAP DI SINI ---
   Widget _buildMapOverlayTip() {
     return Positioned(
       top: 10,
@@ -460,7 +472,7 @@ class _AdminScreenState extends State<AdminScreen> {
         ),
         onPressed: _kirimData,
         child: const Text(
-          "SIMPAN PENGAJUAN",
+          "SIMPAN PENGAJUAN PESTA",
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
@@ -524,7 +536,7 @@ class _AdminScreenState extends State<AdminScreen> {
   }) {
     return TextField(
       controller: ctrl,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
       decoration: _inputDecoration(hint),
     );
   }

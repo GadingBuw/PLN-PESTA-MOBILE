@@ -18,6 +18,7 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
   final Color bgGrey = const Color(0xFFF0F2F5);
   final Color borderGrey = const Color(0xFFE0E4E8);
 
+  // Fungsi untuk mengambil URL publik foto dari Supabase Storage
   String _getPublicUrl(String? fileName) {
     if (fileName == null || fileName.isEmpty) return "";
     final String folder = "bukti_${widget.taskData['id']}";
@@ -26,22 +27,32 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
         .getPublicUrl("$folder/$fileName");
   }
 
-  // Dialog untuk Input Data Suplisi sebelum Cetak
+  // Dialog Cetak PDF: Hanya butuh input Harga/KWH (Parameter lain otomatis dari database)
   void _showSuplisiInputDialog() {
-    final kwhTotalCtrl = TextEditingController(text: "1055");
-    final kwhBayarCtrl = TextEditingController(text: "500");
     final hargaCtrl = TextEditingController(text: "1973.42");
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Input Parameter Suplisi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text("Konfirmasi Cetak Suplisi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildDialogField(kwhTotalCtrl, "Total KWH Terpakai (Pesta)", "kWh"),
-            _buildDialogField(kwhBayarCtrl, "KWH Sudah Terbayar (Awal)", "kWh"),
-            _buildDialogField(hargaCtrl, "Harga per KWH (Rp)", "Rp"),
+            const Text(
+              "Sistem akan menghitung KWH secara otomatis berdasarkan selisih Stand Bongkar dan Stand Pasang.",
+              style: TextStyle(fontSize: 11, color: Colors.blueGrey, height: 1.5),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: hargaCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: "Harga per KWH (Rp)",
+                border: OutlineInputBorder(),
+                prefixText: "Rp ",
+              ),
+            ),
           ],
         ),
         actions: [
@@ -52,25 +63,12 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
               Navigator.pop(context);
               PdfService.generateSuplisiPdf(
                 taskData: widget.taskData,
-                totalKwhPesta: double.tryParse(kwhTotalCtrl.text) ?? 0,
-                kwhSudahTerbayar: double.tryParse(kwhBayarCtrl.text) ?? 0,
                 hargaPerKwh: double.tryParse(hargaCtrl.text) ?? 0,
               );
             },
             child: const Text("CETAK PDF", style: TextStyle(color: Colors.white)),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildDialogField(TextEditingController ctrl, String label, String suffix) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: InputDecoration(labelText: label, suffixText: suffix, border: const OutlineInputBorder()),
       ),
     );
   }
@@ -100,20 +98,20 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("DOKUMENTASI", style: TextStyle(color: Colors.grey, fontSize: 10)),
+            const Text("DOKUMENTASI MONITORING", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
             Text(
-              "Agenda: ${widget.taskData['id_pelanggan']}",
+              "No. Agenda: ${widget.taskData['no_agenda']}",
               style: const TextStyle(color: Colors.black, fontSize: 14, fontWeight: FontWeight.bold),
             ),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.edit_note, color: Colors.orange, size: 28),
+            icon: const Icon(Icons.edit_note_rounded, color: Colors.orange, size: 30),
             onPressed: () => Navigator.push(
               context, 
               MaterialPageRoute(builder: (c) => AdminEditTaskScreen(taskData: widget.taskData))
-            ),
+            ).then((_) => setState(() {})), // Refresh data setelah edit
           ),
           const SizedBox(width: 12),
         ],
@@ -121,6 +119,7 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // HEADER: Progress Visual Penugasan
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -162,23 +161,36 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
                 ],
               ),
             ),
+            
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
+                  // CARD 1: Informasi Dasar Pelanggan
                   _buildSectionCard("INFORMASI PELANGGAN", [
                     _buildInfoRow(Icons.person_pin_rounded, "Nama Pemohon", widget.taskData['nama_pelanggan']),
+                    _buildInfoRow(Icons.confirmation_number_rounded, "Nomor Agenda", widget.taskData['no_agenda']),
                     _buildInfoRow(Icons.map_rounded, "Alamat Lengkap", widget.taskData['alamat']),
                     _buildInfoRow(Icons.bolt_rounded, "Daya Terpasang", "${widget.taskData['daya']} VA"),
+                  ]),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // CARD 2: Parameter KWH & Stand Meter (REVISI)
+                  _buildSectionCard("PARAMETER KWH & STAND METER", [
+                    _buildInfoRow(Icons.low_priority_rounded, "E Min KWH", "${widget.taskData['e_min_kwh'] ?? 0} kWh"),
+                    _buildInfoRow(Icons.payments_rounded, "KWH Terbayar", "${widget.taskData['kwh_terbayar'] ?? 0} kWh"),
+                    _buildInfoRow(Icons.shutter_speed_rounded, "Stand Pasang (Input Petugas)", "${widget.taskData['stand_pasang'] ?? 0}"),
+                    _buildInfoRow(Icons.speed_rounded, "Stand Bongkar (Input Petugas)", "${widget.taskData['stand_bongkar'] ?? 0}"),
                     const SizedBox(height: 20),
-                    // TOMBOL BARU: CETAK PDF SUPLISI
                     SizedBox(
                       width: double.infinity,
-                      height: 50,
+                      height: 52,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green.shade700,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
                         ),
                         onPressed: _showSuplisiInputDialog,
                         icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
@@ -186,8 +198,11 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
                       ),
                     ),
                   ]),
+                  
                   const SizedBox(height: 16),
-                  _buildSectionCard("TITIK LOKASI", [
+
+                  // CARD 3: Titik Lokasi Peta
+                  _buildSectionCard("TITIK LOKASI PENERANGAN", [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(15),
                       child: SizedBox(
@@ -211,12 +226,17 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
                       ),
                     ),
                   ]),
+                  
                   const SizedBox(height: 16),
-                  _buildSectionCard("BUKTI PEKERJAAN", [
-                    _buildPhotoViewer("BUKTI PASANG", checkPasang ? _getPublicUrl(widget.taskData['foto_pemasangan']) : null),
+
+                  // CARD 4: Bukti Dokumentasi Lapangan
+                  _buildSectionCard("BUKTI DOKUMENTASI LAPANGAN", [
+                    _buildPhotoViewer("FOTO PEMASANGAN", checkPasang ? _getPublicUrl(widget.taskData['foto_pemasangan']) : null),
                     const SizedBox(height: 20),
-                    _buildPhotoViewer("BUKTI BONGKAR", checkBongkar ? _getPublicUrl(widget.taskData['foto_pembongkaran']) : null),
+                    _buildPhotoViewer("FOTO PEMBONGKARAN", checkBongkar ? _getPublicUrl(widget.taskData['foto_pembongkaran']) : null),
                   ]),
+                  
+                  const SizedBox(height: 30),
                 ],
               ),
             ),
@@ -226,6 +246,7 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
     );
   }
 
+  // Helper: Visualisasi Step Progress
   Widget _buildStepItem(String label, String? date, bool isActive) => Column(
     children: [
       Text(label, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold)),
@@ -240,6 +261,7 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
     ],
   );
 
+  // Helper: Card Section
   Widget _buildSectionCard(String title, List<Widget> children) => Container(
     width: double.infinity,
     padding: const EdgeInsets.all(20),
@@ -249,13 +271,14 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
       children: [
         Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: primaryBlue, letterSpacing: 0.8)),
         const SizedBox(height: 15),
-        const Divider(height: 1),
+        const Divider(height: 1, thickness: 1),
         const SizedBox(height: 20),
         ...children,
       ],
     ),
   );
 
+  // Helper: Baris Informasi
   Widget _buildInfoRow(IconData icon, String label, String? value) => Padding(
     padding: const EdgeInsets.only(bottom: 18),
     child: Row(
@@ -280,6 +303,7 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
     ),
   );
 
+  // Helper: Viewer Foto Dokumentasi
   Widget _buildPhotoViewer(String title, String? imageUrl) {
     bool hasImage = imageUrl != null && imageUrl.isNotEmpty;
     return Column(
@@ -290,9 +314,13 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
         Container(
           width: double.infinity,
           height: 200,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: borderGrey, width: 2)),
+          decoration: BoxDecoration(
+            color: Colors.white, 
+            borderRadius: BorderRadius.circular(15), 
+            border: Border.all(color: borderGrey, width: 2)
+          ),
           child: hasImage 
-            ? ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.network(imageUrl, fit: BoxFit.cover)) 
+            ? ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.network(imageUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Center(child: Icon(Icons.broken_image, color: Colors.grey)))) 
             : Center(child: Icon(Icons.image_not_supported, color: Colors.grey[300], size: 40)),
         ),
       ],

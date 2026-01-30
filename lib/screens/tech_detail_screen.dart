@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Tambahkan ini
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
+import '../services/task_service.dart';
+import '../services/pdf_service.dart';
 
 class TechDetailScreen extends StatefulWidget {
   final Map taskData;
@@ -17,6 +19,9 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
   File? _img;
   bool _loading = false;
   
+  // Controller untuk input angka stand meter dari lapangan
+  final TextEditingController _standController = TextEditingController();
+  
   // Inisialisasi client Supabase
   final supabase = Supabase.instance.client;
 
@@ -24,51 +29,182 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
   final Color bgGrey = const Color(0xFFF0F2F5);
   final Color borderGrey = const Color(0xFFE0E4E8);
 
+  // Helper untuk mendapatkan URL Foto dari Storage
+  String _getPublicUrl(String? fileName) {
+    if (fileName == null || fileName.isEmpty) return "";
+    final String folder = "bukti_${widget.taskData['id']}";
+    return Supabase.instance.client.storage
+        .from('task-photos')
+        .getPublicUrl("$folder/$fileName");
+  }
+
+  // --- FITUR: PILIH SUMBER FOTO (KAMERA/GALERI) ---
+  Future<void> _pickImage(ImageSource source) async {
+    final p = await ImagePicker().pickImage(source: source, imageQuality: 40);
+    if (p != null) setState(() => _img = File(p.path));
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_enhance_rounded, color: Colors.blue),
+              title: const Text('Ambil Foto Langsung (Kamera)'),
+              onTap: () { Navigator.pop(context); _pickImage(ImageSource.camera); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: Colors.orange),
+              title: const Text('Pilih dari Memori HP (Galeri)'),
+              onTap: () { Navigator.pop(context); _pickImage(ImageSource.gallery); },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- FITUR: EDIT FOTO YANG SUDAH TERKONFIRMASI ---
+  Future<void> _processEditPhoto(bool isPasang, ImageSource source) async {
+    final p = await ImagePicker().pickImage(source: source, imageQuality: 40);
+    if (p == null) return;
+
+    setState(() => _loading = true);
+    try {
+      final String fileName = "${DateTime.now().millisecondsSinceEpoch}_edit.jpg";
+      final String path = "bukti_${widget.taskData['id']}/$fileName";
+      await supabase.storage.from('task-photos').upload(path, File(p.path));
+
+      String kolomFoto = isPasang ? 'foto_pemasangan' : 'foto_pembongkaran';
+      await TaskService().updateTask(widget.taskData['id'], {
+        kolomFoto: fileName,
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Foto bukti berhasil diperbarui!")));
+        setState(() { widget.taskData[kolomFoto] = fileName; });
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal edit: $e")));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _showEditOptions(bool isPasang) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text("Ubah ${isPasang ? 'Foto Pasang' : 'Foto Bongkar'}", style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.blue),
+              title: const Text('Ganti via Kamera'),
+              onTap: () { Navigator.pop(context); _processEditPhoto(isPasang, ImageSource.camera); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.orange),
+              title: const Text('Ganti via Galeri'),
+              onTap: () { Navigator.pop(context); _processEditPhoto(isPasang, ImageSource.gallery); },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- FITUR: CETAK PDF SUPLISI UNTUK PETUGAS ---
+  void _showSuplisiDialog() {
+    final hargaCtrl = TextEditingController(text: "1973.42");
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Cetak PDF Suplisi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: TextField(
+          controller: hargaCtrl,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: const InputDecoration(labelText: "Harga per KWH (Rp)", border: OutlineInputBorder(), prefixText: "Rp "),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              PdfService.generateSuplisiPdf(
+                taskData: widget.taskData, 
+                hargaPerKwh: double.tryParse(hargaCtrl.text) ?? 0
+              );
+            },
+            child: const Text("Cetak"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- LOGIKA KONFIRMASI (REVISI H-1) ---
   Future<void> _submit() async {
     if (_img == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Ambil foto bukti!")));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Ambil atau upload foto bukti!")));
+      return;
+    }
+    if (_standController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Isi angka stand meter lapangan!")));
       return;
     }
 
-    // Validasi Jadwal
     DateTime todayDate = DateTime.parse(DateFormat('yyyy-MM-dd').format(DateTime.now()));
     String status = widget.taskData['status'];
     DateTime tglRencana = DateTime.parse(
       status == 'Menunggu Pemasangan' ? widget.taskData['tgl_pasang'] : widget.taskData['tgl_bongkar'],
     );
 
-    if (tglRencana.isAfter(todayDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Belum masuk jadwal pengerjaan!"), backgroundColor: Colors.orange),
-      );
-      return;
+    // REVISI LOGIKA: Pemasangan boleh H-1, Pembongkaran harus Pas Hari-H
+    if (status == 'Menunggu Pemasangan') {
+      DateTime hMinus1 = tglRencana.subtract(const Duration(days: 1));
+      if (todayDate.isBefore(hMinus1)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Pemasangan maksimal dilakukan H-1 dari jadwal!"), backgroundColor: Colors.orange),
+        );
+        return;
+      }
+    } else {
+      if (tglRencana.isAfter(todayDate)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Belum masuk jadwal pembongkaran!"), backgroundColor: Colors.red),
+        );
+        return;
+      }
     }
 
     setState(() => _loading = true);
 
     try {
-      // 1. Tentukan Nama File & Folder Storage
       final String fileName = "${DateTime.now().millisecondsSinceEpoch}.jpg";
       final String path = "bukti_${widget.taskData['id']}/$fileName";
-
-      // 2. Upload Foto ke Supabase Storage
       await supabase.storage.from('task-photos').upload(path, _img!);
 
-      // 3. Tentukan Status Baru dan Kolom Foto
       String statusBaru = (status == 'Menunggu Pemasangan') ? 'Menunggu Pembongkaran' : 'Selesai';
       String kolomFoto = (status == 'Menunggu Pemasangan') ? 'foto_pemasangan' : 'foto_pembongkaran';
+      String kolomStand = (status == 'Menunggu Pemasangan') ? 'stand_pasang' : 'stand_bongkar';
 
-      // 4. Update Database Supabase
-      await supabase.from('pesta_tasks').update({
+      await TaskService().updateTask(widget.taskData['id'], {
         'status': statusBaru,
-        kolomFoto: fileName, // Simpan nama filenya saja
-      }).eq('id', widget.taskData['id']);
+        kolomFoto: fileName,
+        kolomStand: double.tryParse(_standController.text) ?? 0,
+      });
 
       if (mounted) Navigator.pop(context);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -100,13 +236,14 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text("EKSEKUSI PENUGASAN", style: TextStyle(color: Colors.grey, fontSize: 10, letterSpacing: 1, fontWeight: FontWeight.bold)),
-            Text("Agenda: ${widget.taskData['id_pelanggan']}", style: const TextStyle(color: Colors.black, fontSize: 15, fontWeight: FontWeight.bold)),
+            Text("Agenda: ${widget.taskData['no_agenda']}", style: const TextStyle(color: Colors.black, fontSize: 15, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // HEADER CONTAINER
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -136,17 +273,97 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                 ],
               ),
             ),
+
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
+                  // CARD 1: INFORMASI PELANGGAN
                   _buildSectionCard("INFORMASI PELANGGAN", [
                     _buildInfoRow(Icons.person_pin_rounded, "Nama Pemohon", widget.taskData['nama_pelanggan']),
                     _buildInfoRow(Icons.map_rounded, "Alamat Lengkap", widget.taskData['alamat']),
                     _buildInfoRow(Icons.bolt_rounded, "Daya Terpasang", "${widget.taskData['daya']} VA"),
                   ]),
+
                   const SizedBox(height: 16),
-                  _buildSectionCard("TITIK LOKASI", [
+
+                  // CARD 2: INPUT LAPANGAN
+                  if (!isSelesai)
+                    _buildSectionCard("INPUT HASIL LAPANGAN", [
+                      const Text("Masukkan angka stand meter dan foto kwh meter sebagai bukti.", style: TextStyle(fontSize: 12, color: Colors.black54)),
+                      const SizedBox(height: 20),
+                      
+                      TextField(
+                        controller: _standController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: isBongkar ? "Stand Bongkar (KWH)" : "Stand Pasang (KWH)",
+                          hintText: "Contoh: 1250.50",
+                          prefixIcon: const Icon(Icons.speed_rounded),
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 20),
+
+                      GestureDetector(
+                        onTap: _showImageSourceDialog,
+                        child: Container(
+                          width: double.infinity,
+                          height: 200,
+                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: borderGrey, width: 2)),
+                          child: _img == null
+                              ? Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.camera_enhance_rounded, size: 48, color: primaryBlue.withOpacity(0.5)),
+                                    const SizedBox(height: 12),
+                                    const Text("Ambil / Upload Foto Bukti", style: TextStyle(fontWeight: FontWeight.w600)),
+                                  ],
+                                )
+                              : ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(_img!, fit: BoxFit.cover)),
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 25),
+
+                      SizedBox(
+                        width: double.infinity,
+                        height: 55,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00C853), foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                          onPressed: _loading ? null : _submit,
+                          child: _loading
+                              ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                              : const Text("KONFIRMASI PENYELESAIAN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5)),
+                        ),
+                      ),
+                    ]),
+
+                  const SizedBox(height: 16),
+
+                  // CARD 3: BUKTI PEKERJAAN & CETAK
+                  _buildSectionCard("BUKTI DOKUMENTASI & CETAK", [
+                    _buildPhotoViewerWithEdit("FOTO PEMASANGAN", checkPasang ? _getPublicUrl(widget.taskData['foto_pemasangan']) : null, () => _showEditOptions(true)),
+                    const SizedBox(height: 20),
+                    _buildPhotoViewerWithEdit("FOTO PEMBONGKARAN", checkBongkar ? _getPublicUrl(widget.taskData['foto_pembongkaran']) : null, () => _showEditOptions(false)),
+                    const Divider(height: 40),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        onPressed: _showSuplisiDialog,
+                        icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+                        label: const Text("CETAK PDF SUPLISI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ]),
+
+                  const SizedBox(height: 16),
+
+                  // CARD 4: TITIK LOKASI
+                  _buildSectionCard("TITIK LOKASI PENERANGAN", [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(15),
                       child: SizedBox(
@@ -161,45 +378,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                       ),
                     ),
                   ]),
-                  const SizedBox(height: 16),
-                  if (!isSelesai)
-                    _buildSectionCard("BUKTI PEKERJAAN", [
-                      const Text("Unggah foto dokumentasi pekerjaan di lapangan.", style: TextStyle(fontSize: 12, color: Colors.black54)),
-                      const SizedBox(height: 20),
-                      GestureDetector(
-                        onTap: () async {
-                          final p = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 40);
-                          if (p != null) setState(() => _img = File(p.path));
-                        },
-                        child: Container(
-                          width: double.infinity,
-                          height: 200,
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: borderGrey, width: 2)),
-                          child: _img == null
-                              ? Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.camera_enhance_rounded, size: 48, color: primaryBlue.withOpacity(0.5)),
-                                    const SizedBox(height: 12),
-                                    Text("Klik untuk Ambil Foto", style: TextStyle(color: primaryBlue, fontSize: 13, fontWeight: FontWeight.w600)),
-                                  ],
-                                )
-                              : ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(_img!, fit: BoxFit.cover)),
-                        ),
-                      ),
-                      const SizedBox(height: 25),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00C853), foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                          onPressed: _loading ? null : _submit,
-                          child: _loading
-                              ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
-                              : const Text("KONFIRMASI PENYELESAIAN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 0.5)),
-                        ),
-                      ),
-                    ]),
+                  
                   const SizedBox(height: 30),
                 ],
               ),
@@ -210,7 +389,33 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  // Widget helper tetap sama dengan versi asli Anda
+  // --- HELPER WIDGETS (IDENTIK DENGAN ASLI ANDA) ---
+
+  Widget _buildPhotoViewerWithEdit(String title, String? url, VoidCallback onEdit) {
+    bool hasUrl = url != null && url.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+            if (hasUrl) IconButton(icon: const Icon(Icons.edit_rounded, color: Colors.orange, size: 20), onPressed: onEdit),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          height: 180,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: borderGrey, width: 2)),
+          child: hasUrl 
+            ? ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.network(url, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.broken_image))) 
+            : Center(child: Icon(Icons.image_not_supported, color: Colors.grey[300], size: 40)),
+        ),
+      ],
+    );
+  }
+
   Widget _buildStepItem(String label, String? date, bool isActive) => Column(
         children: [
           Text(label, style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold)),

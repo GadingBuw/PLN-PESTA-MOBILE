@@ -19,6 +19,7 @@ class _AdminSearchTaskScreenState extends State<AdminSearchTaskScreen> {
   final Color bgGrey = const Color(0xFFF0F2F5);
   final Color borderGrey = const Color(0xFFE0E4E8);
 
+  // Fungsi pencarian memanggil TaskService yang sudah kita update sebelumnya
   Future<void> _performSearch(String query) async {
     if (query.isEmpty) {
       setState(() => _searchResults = []);
@@ -33,6 +34,7 @@ class _AdminSearchTaskScreenState extends State<AdminSearchTaskScreen> {
     });
   }
 
+  // Helper untuk format tanggal agar rapi di kartu
   String formatDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return "-";
     try {
@@ -56,7 +58,7 @@ class _AdminSearchTaskScreenState extends State<AdminSearchTaskScreen> {
               controller: _searchController,
               autofocus: true,
               decoration: InputDecoration(
-                hintText: "Cari Agenda / Nama Pelanggan...",
+                hintText: "Cari No Agenda / Nama Pelanggan...", // Hint diperbarui
                 prefixIcon: const Icon(Icons.search, color: Colors.grey),
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.clear, color: Colors.grey),
@@ -68,7 +70,10 @@ class _AdminSearchTaskScreenState extends State<AdminSearchTaskScreen> {
                 filled: true,
                 fillColor: Colors.white,
                 contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(15), 
+                  borderSide: BorderSide.none
+                ),
               ),
               onChanged: _performSearch,
             ),
@@ -90,13 +95,20 @@ class _AdminSearchTaskScreenState extends State<AdminSearchTaskScreen> {
     );
   }
 
+  // Widget Kartu Histori Tugas (Desain Asli Dipertahankan)
   Widget _buildHistoryCard(Map<String, dynamic> task) {
     bool isSelesai = task['status'] == 'Selesai';
-    Color statusColor = isSelesai ? Colors.green : (task['status'] == 'Menunggu Pembongkaran' ? primaryBlue : Colors.orange);
+    Color statusColor = isSelesai 
+        ? Colors.green 
+        : (task['status'] == 'Menunggu Pembongkaran' ? primaryBlue : Colors.orange);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderGrey)),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: borderGrey)
+      ),
       child: InkWell(
         onTap: () => Navigator.push(
           context,
@@ -111,22 +123,42 @@ class _AdminSearchTaskScreenState extends State<AdminSearchTaskScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("AGENDA: ${task['id_pelanggan']}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: primaryBlue.withOpacity(0.8))),
+                  // Label diperbarui menjadi AGENDA
+                  Text(
+                    "AGENDA: ${task['no_agenda']}", 
+                    style: TextStyle(
+                      fontSize: 10, 
+                      fontWeight: FontWeight.bold, 
+                      color: primaryBlue.withOpacity(0.8)
+                    )
+                  ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                    child: Text(task['status'].toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w900)),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1), 
+                      borderRadius: BorderRadius.circular(8)
+                    ),
+                    child: Text(
+                      task['status'].toString().toUpperCase(), 
+                      style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w900)
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Text(task['nama_pelanggan'] ?? "", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+              Text(
+                task['nama_pelanggan'] ?? "", 
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)
+              ),
               const SizedBox(height: 6),
               Row(
                 children: [
                   Icon(Icons.engineering, size: 14, color: primaryBlue),
                   const SizedBox(width: 6),
-                  Text("Teknisi: ${task['teknisi']}", style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  Text(
+                    "Teknisi: ${task['teknisi']}", 
+                    style: const TextStyle(fontSize: 12, color: Colors.black54)
+                  ),
                 ],
               ),
               const Divider(height: 28, thickness: 0.5),

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Tambahkan ini
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import '../models/user_model.dart';
 import '../services/notification_service.dart';
@@ -18,7 +18,7 @@ class TechHome extends StatefulWidget {
 class _TechHomeState extends State<TechHome> {
   int _currentIndex = 0;
   late Future<List<dynamic>> _taskFuture;
-  final supabase = Supabase.instance.client; // Inisialisasi client
+  final supabase = Supabase.instance.client;
 
   int pending = 0;
   int progress = 0;
@@ -31,43 +31,45 @@ class _TechHomeState extends State<TechHome> {
     _taskFuture = fetchAllTasks();
   }
 
+  // LOGIKA UTAMA: Mengambil data dan menghitung status H-1 secara akurat
   Future<List<dynamic>> fetchAllTasks() async {
     try {
-      // Mengambil data dari tabel 'pesta_tasks' difilter berdasarkan teknisi
-      // Kita mengambil data yang belum selesai ATAU yang selesai di bulan berjalan
       final DateTime now = DateTime.now();
       final String firstDayOfMonth = DateFormat('yyyy-MM-01').format(now);
 
       final response = await supabase
           .from('pesta_tasks')
           .select()
-          .eq('teknisi', widget.user.username) // Gunakan username untuk filter
+          .eq('teknisi', widget.user.username)
           .or('status.neq.Selesai,tgl_pasang.gte.$firstDayOfMonth')
           .order('tgl_pasang', ascending: true);
 
       List<dynamic> data = response as List<dynamic>;
 
-      // Karena PHP 'is_hari_ini' & 'is_telat' hilang, kita hitung manual di Flutter
       final String todayStr = DateFormat('yyyy-MM-dd').format(now);
+      // Mendapatkan tanggal besok untuk validasi pengerjaan H-1
+      final String tomorrowStr = DateFormat('yyyy-MM-dd').format(now.add(const Duration(days: 1)));
       
       for (var task in data) {
         String status = task['status'] ?? '';
         String tglP = task['tgl_pasang'] ?? '';
         String tglB = task['tgl_bongkar'] ?? '';
 
-        // Hitung Flag Hari Ini
-        bool isHariIni = (status == 'Menunggu Pemasangan' && tglP == todayStr) ||
+        // REVISI LOGIKA AKTIF: 
+        // Pemasangan dianggap aktif jika dijadwalkan hari ini ATAU besok (H-1)
+        // Pembongkaran tetap hanya aktif jika dijadwalkan hari ini
+        bool isHariIni = (status == 'Menunggu Pemasangan' && (tglP == todayStr || tglP == tomorrowStr)) ||
                          (status == 'Menunggu Pembongkaran' && tglB == todayStr);
         
-        // Hitung Flag Terlambat
+        // Logika Terlambat: Jika tanggal sudah lewat dari hari ini
         bool isTelat = (status == 'Menunggu Pemasangan' && tglP.compareTo(todayStr) < 0) ||
                        (status == 'Menunggu Pembongkaran' && tglB.compareTo(todayStr) < 0);
 
-        // Masukkan kembali ke Map agar UI tidak perlu berubah banyak
         task['is_hari_ini'] = isHariIni ? "1" : "0";
         task['is_telat'] = isTelat ? "1" : "0";
 
-        if (isHariIni) {
+        // Memicu notifikasi instan untuk tugas yang sudah bisa dieksekusi (Hari ini / H-1)
+        if (isHariIni && status != 'Selesai') {
           NotificationService.showInstantNotification(task);
         }
       }
@@ -75,11 +77,12 @@ class _TechHomeState extends State<TechHome> {
       _calculateStats(data);
       return data;
     } catch (e) {
-      debugPrint("Error Supabase: $e");
+      debugPrint("Error Supabase TechHome: $e");
       throw "Koneksi Bermasalah";
     }
   }
 
+  // Menghitung statistik berdasarkan data yang diambil
   void _calculateStats(List<dynamic> tasks) {
     if (mounted) {
       setState(() {
@@ -121,6 +124,7 @@ class _TechHomeState extends State<TechHome> {
     );
   }
 
+  // --- WIDGET HELPER: APPBAR ---
   AppBar _buildAppBar() {
     return AppBar(
       backgroundColor: Colors.white,
@@ -150,6 +154,7 @@ class _TechHomeState extends State<TechHome> {
     );
   }
 
+  // --- WIDGET HELPER: HOME CONTENT ---
   Widget _buildHomeContent() {
     return RefreshIndicator(
       onRefresh: () async => setState(() { _taskFuture = fetchAllTasks(); }),
@@ -165,6 +170,7 @@ class _TechHomeState extends State<TechHome> {
               if (!snapshot.hasData || snapshot.data!.isEmpty)
                 return const Center(child: Padding(padding: EdgeInsets.all(40), child: Text("Tidak ada tugas.")));
 
+              // Memisahkan tugas aktif (Hari ini, H-1, Terlambat) dan tugas akan datang
               final activeTasks = snapshot.data!.where((t) => 
                 t['is_hari_ini'] == "1" || t['is_telat'] == "1"
               ).toList();
@@ -280,17 +286,27 @@ class _TechHomeState extends State<TechHome> {
     );
   }
 
+  // --- WIDGET HELPER: TASK CARD (REVISI LABEL & H-1) ---
   Widget _buildTaskCard(Map t) {
     bool isTelat = t['is_telat'] == "1";
     bool isHariIni = t['is_hari_ini'] == "1";
     bool isBongkar = t['status'].toString().toLowerCase().contains('bongkar');
 
-    Color themeColor = isTelat ? Colors.red : (isHariIni ? (isBongkar ? Colors.orange : Colors.green) : Colors.blueGrey);
+    // Identifikasi khusus untuk penugasan H-1
+    final String tomorrowStr = DateFormat('yyyy-MM-dd').format(DateTime.now().add(const Duration(days: 1)));
+    bool isHMinus1 = t['status'] == 'Menunggu Pemasangan' && t['tgl_pasang'] == tomorrowStr;
+
+    // Warna tema kartu berdasarkan urgensi
+    Color themeColor = isTelat ? Colors.red : (isHariIni ? (isBongkar ? Colors.orange : (isHMinus1 ? Colors.blue : Colors.green)) : Colors.blueGrey);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
       child: Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]),
+        decoration: BoxDecoration(
+          color: Colors.white, 
+          borderRadius: BorderRadius.circular(20), 
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))]
+        ),
         child: InkWell(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => TechDetailScreen(taskData: t))).then((_) => setState(() { _taskFuture = fetchAllTasks(); })),
           borderRadius: BorderRadius.circular(20),
@@ -305,21 +321,50 @@ class _TechHomeState extends State<TechHome> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(color: themeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                      child: Text(isTelat ? "TERLAMBAT" : (isHariIni ? (isBongkar ? "PEMBONGKARAN" : "PEMASANGAN") : "TERJADWAL"), style: TextStyle(color: themeColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        isTelat 
+                          ? "TERLAMBAT" 
+                          : (isHMinus1 
+                              ? "EKSEKUSI (H-1)" 
+                              : (isHariIni 
+                                  ? (isBongkar ? "PEMBONGKARAN" : "PEMASANGAN") 
+                                  : "TERJADWAL")), 
+                        style: TextStyle(color: themeColor, fontSize: 9, fontWeight: FontWeight.bold)
+                      ),
                     ),
-                    Text("Agenda: ${t['id_pelanggan']}", style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
+                    // REVISI LABEL: Menggunakan data 'no_agenda'
+                    Text("Agenda: ${t['no_agenda']}", style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Text(t['nama_pelanggan'] ?? "", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                 const SizedBox(height: 6),
-                Row(children: [const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey), const SizedBox(width: 4), Expanded(child: Text(t['alamat'] ?? "", style: const TextStyle(fontSize: 12, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis))]),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 14, color: Colors.grey),
+                    const SizedBox(width: 4),
+                    Expanded(child: Text(t['alamat'] ?? "", style: const TextStyle(fontSize: 12, color: Colors.grey), maxLines: 1, overflow: TextOverflow.ellipsis))
+                  ]
+                ),
                 const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(children: [const Icon(Icons.bolt, size: 14, color: Colors.orange), const SizedBox(width: 4), Text("${t['daya']} VA", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))]),
-                    Text("Jadwal: ${isBongkar ? t['tgl_bongkar'] : t['tgl_pasang']}", style: TextStyle(fontSize: 11, color: isTelat ? Colors.red : Colors.black54, fontWeight: isTelat ? FontWeight.bold : FontWeight.normal)),
+                    Row(
+                      children: [
+                        const Icon(Icons.bolt, size: 14, color: Colors.orange),
+                        const SizedBox(width: 4),
+                        Text("${t['daya']} VA", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold))
+                      ]
+                    ),
+                    Text(
+                      "Jadwal: ${isBongkar ? t['tgl_bongkar'] : t['tgl_pasang']}", 
+                      style: TextStyle(
+                        fontSize: 11, 
+                        color: isTelat ? Colors.red : Colors.black54, 
+                        fontWeight: isTelat ? FontWeight.bold : FontWeight.normal
+                      )
+                    ),
                   ],
                 ),
               ],

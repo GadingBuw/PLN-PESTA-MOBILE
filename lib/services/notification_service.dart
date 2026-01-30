@@ -1,7 +1,9 @@
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class NotificationService {
+  // 1. Inisialisasi Channel Notifikasi (Tetap Sesuai Struktur Asli)
   static Future<void> initializeNotification() async {
     await AwesomeNotifications().initialize(
       null, // Menggunakan ikon default sistem
@@ -11,8 +13,7 @@ class NotificationService {
           channelName: 'Notifikasi PESTA',
           channelDescription: 'Peringatan tugas pemasangan dan pembongkaran',
           defaultColor: const Color(0xFF1A56F0),
-          importance:
-              NotificationImportance.Max, // Muncul sebagai pop-up di atas layar
+          importance: NotificationImportance.Max, // Muncul sebagai pop-up di atas layar
           channelShowBadge: true,
           playSound: true,
           criticalAlerts: true,
@@ -22,7 +23,7 @@ class NotificationService {
       debug: true,
     );
 
-    // Meminta izin notifikasi saat inisialisasi
+    // Meminta izin notifikasi jika belum diizinkan
     await AwesomeNotifications().isNotificationAllowed().then((isAllowed) {
       if (!isAllowed) {
         AwesomeNotifications().requestPermissionToSendNotifications();
@@ -30,50 +31,59 @@ class NotificationService {
     });
   }
 
+  // 2. Fungsi Memicu Notifikasi Instan (Revisi Logika H-1 & Agenda)
   static Future<void> showInstantNotification(Map<String, dynamic> task) async {
-    // 1. Ambil data jenis_tugas dari alias SQL atau kolom status
-    String jenis = (task['jenis_tugas'] ?? task['status'] ?? "")
-        .toString()
-        .toLowerCase();
+    // Ambil data status dan tanggal untuk menentukan jenis pesan
+    String status = (task['status'] ?? "").toString().toLowerCase();
+    String tglPasang = task['tgl_pasang'] ?? "";
+    String todayStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    
+    // Label diperbarui menjadi Nomor Agenda
+    String agenda = task['no_agenda'] ?? task['id_pelanggan'] ?? "-";
+    String namaPlg = task['nama_pelanggan'] ?? "Pelanggan";
 
     String title = "Tugas PESTA Baru!";
-    String body =
-        "Agenda ${task['id_pelanggan']} untuk ${task['nama_pelanggan']}";
+    String body = "Agenda $agenda untuk $namaPlg";
     NotificationCategory category = NotificationCategory.Reminder;
 
-    // 2. Logika Penentuan Isi Notifikasi Berdasarkan Jenis
-    if (jenis.contains("pemasangan")) {
-      title = "🔔 Reminder Pemasangan!";
-      body =
-          "Ada jadwal pemasangan baru untuk pelanggan ${task['nama_pelanggan']}";
+    // Logika Penentuan Isi Notifikasi Berdasarkan Revisi H-1
+    if (status.contains("pemasangan")) {
       category = NotificationCategory.Status;
-    } else if (jenis.contains("pembongkaran")) {
+      if (tglPasang != todayStr) {
+        // Pesan khusus untuk penugasan H-1
+        title = "🔔 Eksekusi Pemasangan (H-1)!";
+        body = "Penugasan untuk $namaPlg (Agenda: $agenda) sudah bisa dieksekusi mulai hari ini.";
+      } else {
+        // Pesan untuk penugasan tepat di Hari-H
+        title = "🔔 Reminder Pemasangan Hari Ini!";
+        body = "Hari ini jadwal pemasangan untuk $namaPlg (Agenda: $agenda). Silakan lakukan konfirmasi.";
+      }
+    } else if (status.contains("pembongkaran")) {
       title = "⚠️ Reminder Pembongkaran!";
-      body = "Waktunya pembongkaran untuk pelanggan ${task['nama_pelanggan']}";
+      body = "Waktunya pembongkaran untuk pelanggan $namaPlg (Agenda: $agenda).";
       category = NotificationCategory.Alarm;
     }
 
-    print("LOG: Memicu notifikasi instan [$jenis]"); // Debugging di terminal
+    debugPrint("LOG: Memicu notifikasi instan [$status] untuk Agenda $agenda");
 
-    // 3. Eksekusi Notifikasi
+    // 3. Eksekusi Pengiriman Notifikasi ke Sistem Android/iOS
     await AwesomeNotifications().createNotification(
       content: NotificationContent(
-        // Gunakan kombinasi ID unik agar notifikasi pemasangan & pembongkaran tidak menimpa satu sama lain
-        id:
-            int.parse(task['id'].toString()) +
-            (jenis.contains("pemasangan") ? 100 : 200),
+        // Gunakan kombinasi ID unik agar notifikasi tidak saling menimpa
+        id: int.tryParse(task['id'].toString()) ?? DateTime.now().millisecond,
         channelKey: 'pesta_channel',
         title: title,
         body: body,
         category: category,
-        largeIcon:
-            'resource://drawable/logopln', // Pastikan file ada di android/app/src/main/res/drawable
+        // Pastikan file logopln.png ada di res/drawable
+        largeIcon: 'resource://drawable/logopln', 
         notificationLayout: NotificationLayout.Default,
-        wakeUpScreen: true, // Layar menyala saat notif masuk
+        wakeUpScreen: true, // Layar otomatis menyala saat notif masuk
         payload: {'id': task['id'].toString()},
       ),
     );
   }
 
-  static void scheduleTaskNotification(task) {}
+  // Helper untuk schedule (Tetap dipertahankan sesuai struktur aslimu)
+  static void scheduleTaskNotification(dynamic task) {}
 }

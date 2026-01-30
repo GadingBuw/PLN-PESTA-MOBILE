@@ -29,10 +29,10 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
     _historyFuture = fetchHistory();
   }
 
+  // 1. FUNGSI AMBIL DATA HISTORI (DIURUTKAN TERBARU)
   Future<List<dynamic>> fetchHistory() async {
     try {
-      // Mengambil data dari tabel 'pesta_tasks'
-      // Perbaikan: Menggunakan 'ascending: false' untuk mengurutkan dari yang terbaru
+      // Mengambil data dari tabel 'pesta_tasks' berdasarkan teknisi
       final response = await supabase
           .from('pesta_tasks')
           .select()
@@ -49,6 +49,7 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
         String tglP = task['tgl_pasang'] ?? '';
         String tglB = task['tgl_bongkar'] ?? '';
 
+        // Hitung flag terlambat jika melewati tanggal rencana
         bool isTelat = (status == 'Menunggu Pemasangan' && tglP.compareTo(todayStr) < 0) ||
                        (status == 'Menunggu Pembongkaran' && tglB.compareTo(todayStr) < 0);
         
@@ -63,6 +64,7 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
     }
   }
 
+  // Helper format tanggal Indonesia (misal: 15 Nov 2024)
   String formatDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return "-";
     try {
@@ -117,7 +119,7 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
 
           final allData = snapshot.data ?? [];
 
-          // Logika Filter Lokal
+          // Logika Filter Lokal Berdasarkan Jenis Tugas
           List<dynamic> filteredSource = allData.where((item) {
             if (_activeFilter == 'Semua') return true;
             if (_activeFilter == 'Pemasangan') return item['status'] == 'Menunggu Pemasangan';
@@ -125,6 +127,7 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
             return true;
           }).toList();
 
+          // Memisahkan Tugas Aktif dan Selesai
           List<dynamic> activeTasks = filteredSource.where((item) => item['status'] != 'Selesai').toList();
           List<dynamic> completedTasks = filteredSource.where((item) => item['status'] == 'Selesai').toList();
 
@@ -151,6 +154,8 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
     );
   }
 
+  // --- WIDGET HELPERS ---
+
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(left: 5, bottom: 12, top: 5),
@@ -161,11 +166,17 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
   Widget _buildHistoryCard(Map<String, dynamic> task) {
     bool isSelesai = task['status'] == 'Selesai';
     bool isTelat = task['is_telat'] == "1";
+    
+    // Warna status berdasarkan urgensi
     Color statusColor = isSelesai ? Colors.green : (isTelat ? Colors.red : Colors.orange);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderGrey)),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(16), 
+        border: Border.all(color: borderGrey)
+      ),
       child: InkWell(
         onTap: () => Navigator.push(
           context, 
@@ -180,22 +191,46 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("AGENDA: ${task['id_pelanggan']}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: primaryBlue.withOpacity(0.8))),
+                  // REVISI LABEL: Menggunakan data 'no_agenda'
+                  Text(
+                    "AGENDA: ${task['no_agenda']}", 
+                    style: TextStyle(
+                      fontSize: 10, 
+                      fontWeight: FontWeight.bold, 
+                      color: primaryBlue.withOpacity(0.8)
+                    )
+                  ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                    child: Text(isTelat && !isSelesai ? "TERLAMBAT" : task['status'].toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w900)),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1), 
+                      borderRadius: BorderRadius.circular(8)
+                    ),
+                    child: Text(
+                      isTelat && !isSelesai ? "TERLAMBAT" : task['status'].toString().toUpperCase(), 
+                      style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w900)
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Text(task['nama_pelanggan'] ?? "", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+              Text(
+                task['nama_pelanggan'] ?? "", 
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)
+              ),
               const SizedBox(height: 6),
               Row(
                 children: [
                   Icon(Icons.location_on_rounded, size: 14, color: primaryBlue),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(task['alamat'] ?? "", style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  Expanded(
+                    child: Text(
+                      task['alamat'] ?? "", 
+                      style: const TextStyle(fontSize: 12, color: Colors.black54), 
+                      maxLines: 1, 
+                      overflow: TextOverflow.ellipsis
+                    )
+                  ),
                 ],
               ),
               const Divider(height: 28, thickness: 0.5),
@@ -218,7 +253,12 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
     children: [
       Text(label, style: const TextStyle(fontSize: 9, color: Colors.grey, fontWeight: FontWeight.w600)),
       const SizedBox(height: 4),
-      Text(val, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis),
+      Text(
+        val, 
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.black87), 
+        maxLines: 1, 
+        overflow: TextOverflow.ellipsis
+      ),
     ],
   );
 
@@ -229,7 +269,10 @@ class _TechHistoryScreenState extends State<TechHistoryScreen> {
         children: [
           Icon(Icons.assignment_outlined, size: 70, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          const Text("Tidak ada tugas ditemukan", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)),
+          const Text(
+            "Tidak ada tugas ditemukan", 
+            style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w500)
+          ),
         ],
       ),
     ),
