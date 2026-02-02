@@ -1,22 +1,17 @@
 {
   "configurations": [
     {
-      "name": "Windows",
+      "name": "windows-gcc-x64",
       "includePath": [
-        "${workspaceFolder}/**",
-        "${workspaceFolder}/windows/flutter/ephemeral/cpp_client_wrapper/include",
-        "${workspaceFolder}/windows/flutter/ephemeral",
-        "${env:FLUTTER_SDK}/packages/flutter_tools/cpp/windows"
+        "${workspaceFolder}/**"
       ],
-      "defines": [
-        "_DEBUG",
-        "UNICODE",
-        "_UNICODE"
-      ],
-      "compilerPath": "cl.exe",
-      "cStandard": "c17",
-      "cppStandard": "c++17",
-      "intelliSenseMode": "msvc-x64"
+      "compilerPath": "C:/TDM-GCC-64/bin/gcc.exe",
+      "cStandard": "${default}",
+      "cppStandard": "${default}",
+      "intelliSenseMode": "windows-gcc-x64",
+      "compilerArgs": [
+        ""
+      ]
     }
   ],
   "version": 4
