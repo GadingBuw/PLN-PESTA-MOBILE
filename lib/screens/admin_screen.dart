@@ -13,25 +13,38 @@ class AdminScreen extends StatefulWidget {
 }
 
 class _AdminScreenState extends State<AdminScreen> {
+<<<<<<< HEAD
   // Controller diperbarui (idPelCtrl ganti jadi agendaCtrl + tambahan E-min & Terbayar)
   final agendaCtrl = TextEditingController();
+=======
+  final agendaCtrl = TextEditingController(); 
+>>>>>>> d771f310c3aa1a2c1ac8c1ede9b4597798fd2c8b
   final namaCtrl = TextEditingController();
+  final noTelpCtrl = TextEditingController(); // Controller Baru
   final alamatCtrl = TextEditingController();
+<<<<<<< HEAD
   final eMinCtrl = TextEditingController(text: "0"); // Revisi: Input E-Min
   final kwhTerbayarCtrl = TextEditingController(
     text: "0",
   ); // Revisi: Input Terbayar Awal
+=======
+  final eMinCtrl = TextEditingController(text: "0"); 
+  final kwhTerbayarCtrl = TextEditingController(text: "0"); 
+>>>>>>> d771f310c3aa1a2c1ac8c1ede9b4597798fd2c8b
   final MapController _mapController = MapController();
 
-  // Inisialisasi client Supabase
   final supabase = Supabase.instance.client;
 
   DateTime? tglP;
   DateTime? tglB;
+<<<<<<< HEAD
   LatLng _selectedLocation = const LatLng(
     -8.2045,
     111.0921,
   ); // Default ke Pacitan
+=======
+  LatLng _selectedLocation = const LatLng(-8.2045, 111.0921); 
+>>>>>>> d771f310c3aa1a2c1ac8c1ede9b4597798fd2c8b
   String? selectedTeknisi;
   String? selectedDaya;
   List<UserModel> availableTeknisi = [];
@@ -63,7 +76,6 @@ class _AdminScreenState extends State<AdminScreen> {
   final Color inputGrey = const Color(0xFFF8F9FA);
   final Color borderGrey = const Color(0xFFE0E4E8);
 
-  // --- LOGIKA LOKASI (GEOMAPPING) - TETAP UTUH 100% ---
   Future<void> _searchFromAddress() async {
     if (alamatCtrl.text.isEmpty) return;
     setState(() => isSearching = true);
@@ -103,7 +115,6 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  // --- LOGIKA FILTER TEKNISI (MAX 2 TUGAS PER HARI) - TETAP UTUH 100% ---
   Future<void> _filterTeknisi(DateTime date) async {
     setState(() {
       isLoadingTeknisi = true;
@@ -113,7 +124,6 @@ class _AdminScreenState extends State<AdminScreen> {
 
     try {
       String formattedDate = DateFormat('yyyy-MM-dd').format(date);
-
       final responseTasks = await supabase
           .from('pesta_tasks')
           .select('teknisi, tgl_pasang, tgl_bongkar')
@@ -158,11 +168,11 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  // --- SIMPAN DATA KE SUPABASE (REVISI KOLOM DATABASE) ---
   Future<void> _kirimData() async {
     if (tglP == null ||
         tglB == null ||
         agendaCtrl.text.isEmpty ||
+        noTelpCtrl.text.isEmpty || // Validasi baru
         selectedTeknisi == null ||
         selectedDaya == null) {
       ScaffoldMessenger.of(
@@ -179,15 +189,23 @@ class _AdminScreenState extends State<AdminScreen> {
 
     try {
       await supabase.from('pesta_tasks').insert({
-        'no_agenda': agendaCtrl.text, // Perubahan kolom
+        'no_agenda': agendaCtrl.text,
         'nama_pelanggan': namaCtrl.text,
+        'no_telp': noTelpCtrl.text, // Data Baru
         'alamat': alamatCtrl.text,
         'daya': selectedDaya,
+<<<<<<< HEAD
         'e_min_kwh': double.tryParse(eMinCtrl.text) ?? 0, // Kolom Baru
         'kwh_terbayar':
             double.tryParse(kwhTerbayarCtrl.text) ?? 0, // Kolom Baru
         'stand_pasang': 0, // Inisialisasi awal 0
         'stand_bongkar': 0, // Inisialisasi awal 0
+=======
+        'e_min_kwh': double.tryParse(eMinCtrl.text) ?? 0,
+        'kwh_terbayar': double.tryParse(kwhTerbayarCtrl.text) ?? 0,
+        'stand_pasang': 0,
+        'stand_bongkar': 0,
+>>>>>>> d771f310c3aa1a2c1ac8c1ede9b4597798fd2c8b
         'tgl_pasang': DateFormat('yyyy-MM-dd').format(tglP!),
         'tgl_bongkar': DateFormat('yyyy-MM-dd').format(tglB!),
         'teknisi': selectedTeknisi,
@@ -241,8 +259,17 @@ class _AdminScreenState extends State<AdminScreen> {
                 _buildLabel("Nama Pelanggan"),
                 _buildTextField(namaCtrl, "Nama lengkap pemohon"),
                 const SizedBox(height: 16),
+<<<<<<< HEAD
 
                 // REVISI: Penambahan Row untuk E-Min dan Terbayar
+=======
+                
+                // INPUT BARU: Nomor Telepon
+                _buildLabel("Nomor Telepon / WA"),
+                _buildTextField(noTelpCtrl, "Contoh: 081234567XXX", isNumber: true),
+                const SizedBox(height: 16),
+                
+>>>>>>> d771f310c3aa1a2c1ac8c1ede9b4597798fd2c8b
                 Row(
                   children: [
                     Expanded(
@@ -438,7 +465,6 @@ class _AdminScreenState extends State<AdminScreen> {
     );
   }
 
-  // --- SEMUA WIDGET HELPERS ASLI ANDA TETAP DI SINI ---
   Widget _buildMapOverlayTip() {
     return Positioned(
       top: 10,

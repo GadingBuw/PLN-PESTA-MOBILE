@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart'; 
 import 'admin_task_monitoring_detail.dart';
 
 class AdminTechHistoryDetail extends StatefulWidget {
@@ -32,6 +33,61 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
     _historyFuture = fetchHistory();
   }
 
+  // LOGIKA HUBUNGI PELANGGAN
+  Future<void> _contactCustomer(Map task) async {
+    final String phone = task['no_telp'] ?? "";
+    if (phone.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nomor telepon tidak tersedia")));
+      return;
+    }
+    
+    String cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '62${cleanPhone.substring(1)}';
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text("Hubungi Pelanggan via:", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const CircleAvatar(backgroundColor: Colors.green, radius: 15, child: Icon(Icons.chat_bubble_outline, color: Colors.white, size: 16)),
+              title: const Text('WhatsApp'),
+              onTap: () { Navigator.pop(context); _launchExternalUrl("https://wa.me/$cleanPhone"); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.phone, color: Colors.blue),
+              title: const Text('Telepon Reguler'),
+              onTap: () { Navigator.pop(context); _launchExternalUrl("tel:+$cleanPhone"); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.sms, color: Colors.orange),
+              title: const Text('SMS'),
+              onTap: () { Navigator.pop(context); _launchExternalUrl("sms:+$cleanPhone"); },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchExternalUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Gagal membuka $urlString';
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
   Future<List<dynamic>> fetchHistory() async {
     try {
       final response = await supabase
@@ -51,9 +107,7 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
     if (dateStr == null || dateStr.isEmpty) return "-";
     try {
       return DateFormat('d MMM yyyy').format(DateTime.parse(dateStr));
-    } catch (e) {
-      return "-";
-    }
+    } catch (e) { return "-"; }
   }
 
   @override
@@ -81,7 +135,6 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
           }
 
           final allData = snapshot.data ?? [];
-
           List<dynamic> filteredSource = allData.where((item) {
             if (_activeFilter == 'Semua') return true;
             if (_activeFilter == 'Pemasangan') return item['status'] == 'Menunggu Pemasangan';
@@ -143,53 +196,77 @@ class _AdminTechHistoryDetailState extends State<AdminTechHistoryDetail> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderGrey)),
-      child: InkWell(
-        onTap: () async {
-          // Menunggu hasil dari halaman detail
-          await Navigator.push(context, MaterialPageRoute(builder: (c) => AdminTaskMonitoringDetail(taskData: task)));
-          // Refresh data setelah kembali
-          setState(() { _historyFuture = fetchHistory(); });
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () async {
+              await Navigator.push(context, MaterialPageRoute(builder: (c) => AdminTaskMonitoringDetail(taskData: task)));
+              setState(() { _historyFuture = fetchHistory(); });
+            },
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("AGENDA: ${task['id_pelanggan']}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: primaryBlue.withOpacity(0.8))),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                    child: Text(task['status'].toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w900)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text("AGENDA: ${task['no_agenda']}", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: primaryBlue.withOpacity(0.8))),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                        child: Text(task['status'].toString().toUpperCase(), style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.w900)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(task['nama_pelanggan'] ?? "", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.location_on_rounded, size: 14, color: primaryBlue),
+                      const SizedBox(width: 6),
+                      Expanded(child: Text(task['alamat'] ?? "", style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Text(task['nama_pelanggan'] ?? "", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black87)),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Icon(Icons.location_on_rounded, size: 14, color: primaryBlue),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(task['alamat'] ?? "", style: const TextStyle(fontSize: 12, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                ],
-              ),
-              const Divider(height: 28, thickness: 0.5),
-              Row(
-                children: [
-                  _infoTile("PASANG", formatDate(task['tgl_pasang'])),
-                  const SizedBox(width: 20),
-                  _infoTile("BONGKAR", formatDate(task['tgl_bongkar'])),
-                  const Spacer(),
-                  const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Icon(Icons.phone_android_rounded, size: 14, color: Colors.blueGrey[400]),
+                const SizedBox(width: 6),
+                Text(task['no_telp'] ?? "No. Telp Tidak Ada", style: TextStyle(fontSize: 12, color: Colors.blueGrey[700], fontWeight: FontWeight.w500)),
+                const Spacer(),
+                if (task['no_telp'] != null)
+                  TextButton.icon(
+                    onPressed: () => _contactCustomer(task),
+                    style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                    icon: const Icon(Icons.chat_bubble_outline, size: 16, color: Colors.green),
+                    label: const Text("HUBUNGI", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green)),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                _infoTile("PASANG", formatDate(task['tgl_pasang'])),
+                const SizedBox(width: 20),
+                _infoTile("BONGKAR", formatDate(task['tgl_bongkar'])),
+                const Spacer(),
+                const Icon(Icons.arrow_forward_ios, size: 12, color: Colors.grey),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

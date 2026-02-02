@@ -13,9 +13,10 @@ class AdminEditTaskScreen extends StatefulWidget {
 class _AdminEditTaskScreenState extends State<AdminEditTaskScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controller untuk input teks (Lama & Baru)
+  // Controller untuk input teks (Lama, Baru, dan Revisi No Telp)
   late TextEditingController _agendaController;
   late TextEditingController _namaController;
+  late TextEditingController _noTelpController; // Penambahan No Telp
   late TextEditingController _alamatController;
   late TextEditingController _dayaController;
   late TextEditingController _eMinController;
@@ -33,13 +34,14 @@ class _AdminEditTaskScreenState extends State<AdminEditTaskScreen> {
   @override
   void initState() {
     super.initState();
-    // Inisialisasi controller dengan data dari database (termasuk kolom revisi)
+    // Inisialisasi controller dengan data dari database
     _agendaController = TextEditingController(text: widget.taskData['no_agenda']);
     _namaController = TextEditingController(text: widget.taskData['nama_pelanggan']);
+    _noTelpController = TextEditingController(text: widget.taskData['no_telp'] ?? ""); // Init No Telp
     _alamatController = TextEditingController(text: widget.taskData['alamat']);
     _dayaController = TextEditingController(text: widget.taskData['daya'].toString());
     
-    // Inisialisasi kolom baru (default ke '0' jika data null)
+    // Inisialisasi kolom parameter teknis
     _eMinController = TextEditingController(text: (widget.taskData['e_min_kwh'] ?? 0).toString());
     _kwhBayarController = TextEditingController(text: (widget.taskData['kwh_terbayar'] ?? 0).toString());
     _standPasangController = TextEditingController(text: (widget.taskData['stand_pasang'] ?? 0).toString());
@@ -65,7 +67,7 @@ class _AdminEditTaskScreenState extends State<AdminEditTaskScreen> {
     }
   }
 
-  // Fungsi utama untuk menyimpan revisi
+  // Fungsi utama untuk menyimpan revisi data
   Future<void> _saveChanges() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
@@ -74,7 +76,7 @@ class _AdminEditTaskScreenState extends State<AdminEditTaskScreen> {
       final String teknisi = widget.taskData['teknisi'];
 
       try {
-        // 1. VALIDASI JADWAL (Tetap dipertahankan sesuai fitur asli Anda)
+        // 1. VALIDASI JADWAL (Maksimal 2 tugas per hari)
         bool pasangOk = await TaskService().isTechnicianAvailable(taskId, teknisi, _tglPasang!);
         bool bongkarOk = await TaskService().isTechnicianAvailable(taskId, teknisi, _tglBongkar!);
 
@@ -91,10 +93,11 @@ class _AdminEditTaskScreenState extends State<AdminEditTaskScreen> {
           return;
         }
 
-        // 2. Eksekusi Update ke Supabase dengan data revisi lengkap
+        // 2. Eksekusi Update ke Supabase termasuk data No Telp
         await TaskService().updateTask(taskId, {
           'no_agenda': _agendaController.text,
           'nama_pelanggan': _namaController.text,
+          'no_telp': _noTelpController.text, // Simpan No Telp baru
           'alamat': _alamatController.text,
           'daya': _dayaController.text,
           'tgl_pasang': _tglPasang,
@@ -140,11 +143,18 @@ class _AdminEditTaskScreenState extends State<AdminEditTaskScreen> {
               // Identitas Pelanggan
               _buildTextField(_agendaController, "Nomor Agenda", Icons.confirmation_number),
               _buildTextField(_namaController, "Nama Pelanggan", Icons.person),
+              
+              // FIELD BARU: Nomor Telepon
+              _buildTextField(_noTelpController, "Nomor Telepon / WA", Icons.phone, isNumber: true),
+              
               _buildTextField(_alamatController, "Alamat Lengkap", Icons.map, maxLines: 2),
               _buildTextField(_dayaController, "Daya (VA)", Icons.bolt, isNumber: true),
               
               const Divider(height: 30),
-              const Text("PARAMETER KWH & STAND METER", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey, letterSpacing: 0.5)),
+              const Text(
+                "PARAMETER KWH & STAND METER", 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blueGrey, letterSpacing: 0.5)
+              ),
               const SizedBox(height: 15),
 
               // Baris Input E-Min dan KWH Terbayar
@@ -206,6 +216,8 @@ class _AdminEditTaskScreenState extends State<AdminEditTaskScreen> {
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE0E4E8))),
+          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: primaryBlue)),
         ),
         validator: (v) => v!.isEmpty ? "Bidang ini wajib diisi" : null,
       ),
@@ -221,12 +233,12 @@ class _AdminEditTaskScreenState extends State<AdminEditTaskScreen> {
         border: Border.all(color: const Color(0xFFE0E4E8)),
       ),
       child: ListTile(
-        title: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.bold)),
+        title: Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.bold)),
         subtitle: Text(
           DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.parse(date)), 
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87),
         ),
-        trailing: Icon(Icons.calendar_today_rounded, color: primaryBlue, size: 20),
+        trailing: Icon(Icons.calendar_today_rounded, color: primaryBlue, size: 18),
         onTap: onTap,
       ),
     );
