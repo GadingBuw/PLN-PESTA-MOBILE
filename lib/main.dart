@@ -1,216 +1,147 @@
 import 'package:flutter/material.dart';
-import 'models/user_model.dart';
-import 'screens/admin_home.dart';
-import 'screens/tech_home.dart';
+import 'package:workmanager/workmanager.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'services/notification_service.dart';
+import 'screens/login_screen.dart';
 
-// URL API Anda
-final String baseUrl = "http://10.5.224.202/pesta_api/index.php";
+// Masukkan URL dan Anon Key dari dashboard Supabase Anda (Project Settings > API)
+const String supabaseUrl = 'https://vzupgvjbmllwudoenuxp.supabase.co';
+const String supabaseKey = 'sb_publishable_0chiXdXnRJZB4l6VKTU1ww_myomOLhP';
 
-void main() => runApp(
-  const MaterialApp(debugShowCheckedModeBanner: false, home: LoginScreen()),
-);
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((taskName, inputData) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? username = prefs.getString('user_session');
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
+    if (username != null) {
+      try {
+        // Inisialisasi Supabase khusus untuk Background Process
+        await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+        final supabase = Supabase.instance.client;
+
+        // Mengambil data langsung dari tabel 'pesta_tasks'
+        final List<dynamic> data = await supabase
+            .from('pesta_tasks')
+            .select()
+            .eq('teknisi', username); // Filter berdasarkan nama teknisi
+
+        if (data.isNotEmpty) {
+          await NotificationService.initializeNotification();
+
+          DateTime now = DateTime.now();
+          String todayStr =
+              "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+
+          for (var t in data) {
+            String status = t['status'] ?? '';
+            String tglPasang = t['tgl_pasang']?.toString() ?? '';
+            String tglBongkar = t['tgl_bongkar']?.toString() ?? '';
+
+            bool isJadwalPasangHariIni =
+                (status == 'Menunggu Pemasangan' && tglPasang == todayStr);
+            bool isJadwalBongkarHariIni =
+                (status == 'Menunggu Pembongkaran' && tglBongkar == todayStr);
+
+            if (isJadwalPasangHariIni || isJadwalBongkarHariIni) {
+              String lastNotifKey = "last_notif_${t['id']}";
+              String? lastSent = prefs.getString(lastNotifKey);
+
+              if (lastSent != todayStr) {
+                await NotificationService.showInstantNotification(t);
+                await prefs.setString(lastNotifKey, todayStr);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint("Background Fetch Error (Supabase): $e");
+      }
+    }
+    return Future.value(true);
+  });
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final u = TextEditingController();
-  final p = TextEditingController();
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  void login() {
-    try {
-      final user = listUser.firstWhere(
-        (x) => x.username == u.text && x.password == p.text,
-      );
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (c) => user.role == "admin"
-              ? AdminHome(user: user)
-              : TechHome(user: user),
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Email atau Password Salah!")),
-      );
-    }
-  }
+  // 1. Inisialisasi Supabase di awal aplikasi
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseKey);
+
+  await initializeDateFormatting('id_ID', null);
+  await NotificationService.initializeNotification();
+
+  await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
+  await Workmanager().cancelAll();
+
+  await Workmanager().registerPeriodicTask(
+    "pesta_task_check_unique_id",
+    "fetchDataTask",
+    frequency: const Duration(minutes: 15),
+    constraints: Constraints(networkType: NetworkType.connected),
+    existingWorkPolicy: ExistingWorkPolicy.replace,
+  );
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        // Latar belakang gradasi biru sesuai desain
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF1A56F0), Color(0xFF0039A6)],
+    const Color myPrimaryColor = Color(0xFF1A56F0);
+    const Color myBgGrey = Color(0xFFF0F2F5);
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'PLN PESTA Mobile',
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: myPrimaryColor,
+          primary: myPrimaryColor,
+          secondary: const Color(0xFF00C7E1),
+        ),
+        scaffoldBackgroundColor: myBgGrey,
+        progressIndicatorTheme: const ProgressIndicatorThemeData(
+          color: myPrimaryColor,
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: myPrimaryColor,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          centerTitle: false,
+          titleTextStyle: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              const SizedBox(height: 100),
-              // Logo PLN
-              Container(
-                width: 90,
-                height: 90,
-                decoration: BoxDecoration(
-                  color: Colors.yellow,
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: const Icon(Icons.bolt, size: 70, color: Colors.red),
-              ),
-              const SizedBox(height: 15),
-              const Text(
-                "PESTA MOBILE",
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const Text(
-                "PLN - Pemasangan & Pembongkaran Daya",
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-              const SizedBox(height: 50),
-              // Kotak Form Login
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 25),
-                child: Container(
-                  padding: const EdgeInsets.all(25),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Login ke Akun Anda",
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF333333),
-                        ),
-                      ),
-                      const SizedBox(height: 25),
-                      const Text(
-                        "Email atau ID Pegawai",
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: u,
-                        decoration: InputDecoration(
-                          hintText: "Email atau Username",
-                          prefixIcon: const Icon(
-                            Icons.email_outlined,
-                            size: 20,
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 15,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE0E0E0),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE0E0E0),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const Text(
-                        "Password",
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: p,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          hintText: "Masukkan Password",
-                          prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 15,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE0E0E0),
-                            ),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: const BorderSide(
-                              color: Color(0xFFE0E0E0),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 35),
-                      // Tombol Masuk
-                      SizedBox(
-                        width: double.infinity,
-                        height: 55,
-                        child: ElevatedButton(
-                          onPressed: login,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1A56F0),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
-                            ),
-                            elevation: 4,
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                "Masuk",
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              SizedBox(width: 10),
-                              Icon(
-                                Icons.arrow_forward,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 60),
-              const Text(
-                "© 2026 PLN. All Rights Reserved.",
-                style: TextStyle(color: Colors.white54, fontSize: 11),
-              ),
-              const SizedBox(height: 20),
-            ],
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE0E4E8)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE0E4E8)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: myPrimaryColor, width: 1.5),
           ),
         ),
       ),
+      home: const LoginScreen(),
     );
   }
 }

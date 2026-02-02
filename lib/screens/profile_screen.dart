@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:supabase_flutter/supabase_flutter.dart'; 
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
-import '../main.dart';
+import 'login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -14,165 +14,231 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   String totalSelesai = "0";
+  bool isLoading = true;
+
+  // Inisialisasi client Supabase
+  final supabase = Supabase.instance.client;
+
+  final Color primaryBlue = const Color(0xFF1A56F0);
+  final Color bgGrey = const Color(0xFFF0F2F5);
+  final Color borderGrey = const Color(0xFFE0E4E8);
 
   @override
   void initState() {
     super.initState();
-    _loadStats();
+    // Hanya load statistik jika user BUKAN admin
+    if (widget.user.role.toLowerCase() != 'admin') {
+      _loadStats();
+    } else {
+      setState(() => isLoading = false);
+    }
   }
 
+  // Fungsi mengambil statistik penyelesaian tugas teknisi
   Future<void> _loadStats() async {
     try {
-      // Mengambil statistik berdasarkan username yang sedang login
-      final response = await http.get(
-        Uri.parse("$baseUrl?action=get_stats&teknisi=${widget.user.username}"),
-      );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      final response = await supabase
+          .from('pesta_tasks')
+          .select('id')
+          .eq('teknisi', widget.user.username)
+          .eq('status', 'Selesai');
+
+      if (mounted) {
         setState(() {
-          totalSelesai = data['total_selesai'].toString();
+          totalSelesai = (response as List).length.toString();
+          isLoading = false;
         });
       }
     } catch (e) {
       debugPrint("Gagal load statistik: $e");
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    try {
+      await supabase.auth.signOut();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('user_session');
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (c) => const LoginScreen()),
+          (r) => false,
+        );
+      }
+    } catch (e) {
+      debugPrint("Error saat logout: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    bool isAdmin = widget.user.role.toLowerCase() == 'admin';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: bgGrey,
       body: Column(
         children: [
-          // Header Profil (Dinamis sesuai User)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 50, horizontal: 20),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(colors: [Color(0xFF00549B), Color(0xFF00CCFF)]),
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(30),
-                bottomRight: Radius.circular(30),
-              ),
-            ),
-            child: Column(
+          _buildHeader(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(20),
               children: [
-                const CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, size: 60, color: Color(0xFF00549B)),
-                ),
-                const SizedBox(height: 15),
-                Text(
-                  widget.user.nama.toUpperCase(), // Menampilkan Nama asli dari model
-                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                Text(
-                  "Username: @${widget.user.username} | Role: ${widget.user.role}",
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
-                ),
+                // Kondisi: Hanya muncul jika BUKAN admin
+                if (!isAdmin) ...[
+                  _buildSectionTitle("RINGKASAN PERFORMA"),
+                  _buildStatsCard(),
+                  const SizedBox(height: 20),
+                ],
+                
+                _buildSectionTitle("INFORMASI AKUN"),
+                _buildInfoCard(),
+                const SizedBox(height: 30),
+                _buildLogoutButton(),
               ],
             ),
           ),
-
-          const SizedBox(height: 20),
-
-          // Card Identitas (Dinamis sesuai User)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("INFORMASI AKUN", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
-                    const Divider(),
-                    _buildInfoRow(Icons.badge, "Nama Lengkap", widget.user.nama),
-                    _buildInfoRow(Icons.numbers, "NIM / ID Karyawan", widget.user.nim),
-                    _buildInfoRow(Icons.security, "Hak Akses", widget.user.role.toUpperCase()),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // Card Statistik Kerja (Dinamis dari API)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-              child: ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
-                  child: const Icon(Icons.check_circle, color: Colors.green),
-                ),
-                title: const Text("Pekerjaan Selesai", style: TextStyle(fontSize: 14)),
-                subtitle: const Text("Bulan ini", style: TextStyle(fontSize: 12)),
-                trailing: Text(
-                  totalSelesai,
-                  style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green),
-                ),
-              ),
-            ),
-          ),
-
-          const Spacer(),
-
-          // Tombol Logout
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
-                onPressed: () {
-                  // Kembali ke halaman Login dan hapus semua history navigasi
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (c) => const LoginScreen()),
-                    (r) => false,
-                  );
-                },
-                icon: const Icon(Icons.power_settings_new),
-                label: const Text("LOGOUT", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
+  // --- WIDGET COMPONENTS ---
+
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 60, bottom: 30, left: 20, right: 20),
+      decoration: BoxDecoration(
+        color: primaryBlue,
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(30),
+          bottomRight: Radius.circular(30),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle),
+            child: CircleAvatar(
+              radius: 45,
+              backgroundColor: Colors.white,
+              child: Icon(Icons.person, size: 50, color: primaryBlue),
+            ),
+          ),
+          const SizedBox(height: 15),
+          Text(
+            widget.user.nama.toUpperCase(),
+            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 5),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(20)),
+            child: Text(
+              "Role: ${widget.user.role.toUpperCase()}",
+              style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatsCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 10, bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderGrey),
+      ),
       child: Row(
         children: [
-          Icon(icon, size: 22, color: const Color(0xFF00549B)),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.task_alt_rounded, color: Colors.green),
+          ),
           const SizedBox(width: 15),
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
+                Text("Total Pekerjaan Selesai", style: TextStyle(fontSize: 13, color: Colors.grey, fontWeight: FontWeight.w500)),
+                Text("Akumulasi Tugas", style: TextStyle(fontSize: 11, color: Colors.grey)),
               ],
             ),
+          ),
+          isLoading 
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : Text(totalSelesai, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.green)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoCard() {
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderGrey),
+      ),
+      child: Column(
+        children: [
+          _buildInfoTile(Icons.alternate_email_rounded, "Username", "@${widget.user.username}"),
+          const Divider(height: 1, color: Color(0xFFF0F2F5)),
+          _buildInfoTile(Icons.badge_outlined, "ID Pengguna", widget.user.username),
+          const Divider(height: 1, color: Color(0xFFF0F2F5)),
+          _buildInfoTile(Icons.admin_panel_settings_outlined, "Hak Akses", widget.user.role),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.redAccent.shade700,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        onPressed: _handleLogout,
+        icon: const Icon(Icons.logout_rounded, size: 20),
+        label: const Text("LOGOUT", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.8, fontSize: 14)),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(title, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1));
+  }
+
+  Widget _buildInfoTile(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: primaryBlue),
+          const SizedBox(width: 15),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.black87)),
+            ],
           ),
         ],
       ),
