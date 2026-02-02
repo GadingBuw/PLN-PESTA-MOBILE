@@ -328,16 +328,13 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
             ),
             Text(
               value.toString(),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
       ),
     );
-  };
+  }
 
   Widget _buildEmptyState() {
     return const Center(
