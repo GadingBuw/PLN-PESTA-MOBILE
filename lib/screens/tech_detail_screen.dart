@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart'; 
 import '../services/task_service.dart';
 import '../services/pdf_service.dart';
 
@@ -18,18 +19,13 @@ class TechDetailScreen extends StatefulWidget {
 class _TechDetailScreenState extends State<TechDetailScreen> {
   File? _img;
   bool _loading = false;
-  
-  // Controller untuk input angka stand meter dari lapangan
   final TextEditingController _standController = TextEditingController();
-  
-  // Inisialisasi client Supabase
   final supabase = Supabase.instance.client;
 
   final Color primaryBlue = const Color(0xFF1A56F0);
   final Color bgGrey = const Color(0xFFF0F2F5);
   final Color borderGrey = const Color(0xFFE0E4E8);
 
-  // Helper untuk mendapatkan URL Foto dari Storage
   String _getPublicUrl(String? fileName) {
     if (fileName == null || fileName.isEmpty) return "";
     final String folder = "bukti_${widget.taskData['id']}";
@@ -38,7 +34,78 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
         .getPublicUrl("$folder/$fileName");
   }
 
-  // --- FITUR: PILIH SUMBER FOTO (KAMERA/GALERI) ---
+  // --- FITUR: MULTI-CHANNEL COMMUNICATION ---
+  Future<void> _contactCustomer() async {
+    final String phone = widget.taskData['no_telp'] ?? "";
+    if (phone.isEmpty) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nomor telepon tidak tersedia")));
+      return;
+    }
+    
+    String cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanPhone.startsWith('0')) cleanPhone = '62${cleanPhone.substring(1)}';
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text("Pilih Metode Komunikasi", style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            ListTile(
+              leading: const CircleAvatar(
+                backgroundColor: Colors.green,
+                radius: 15,
+                child: Icon(Icons.chat, color: Colors.white, size: 16), // Diganti agar tidak merah
+              ),
+              title: const Text('Kirim WhatsApp'),
+              onTap: () {
+                Navigator.pop(context);
+                _launchExternalUrl("https://wa.me/$cleanPhone");
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.phone, color: Colors.blue),
+              title: const Text('Telepon Reguler (Pulsa)'),
+              onTap: () {
+                Navigator.pop(context);
+                _launchExternalUrl("tel:+$cleanPhone");
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.sms, color: Colors.orange),
+              title: const Text('Kirim SMS'),
+              onTap: () {
+                Navigator.pop(context);
+                _launchExternalUrl("sms:+$cleanPhone");
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper Launcher dengan pengecekan canLaunchUrl (Menghilangkan garis biru)
+  Future<void> _launchExternalUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        throw 'Tidak bisa membuka $urlString';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal membuka aplikasi: $e")));
+      }
+    }
+  }
+
+  // --- FITUR: PILIH SUMBER FOTO ---
   Future<void> _pickImage(ImageSource source) async {
     final p = await ImagePicker().pickImage(source: source, imageQuality: 40);
     if (p != null) setState(() => _img = File(p.path));
@@ -67,7 +134,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  // --- FITUR: EDIT FOTO YANG SUDAH TERKONFIRMASI ---
+  // --- FITUR: EDIT FOTO ---
   Future<void> _processEditPhoto(bool isPasang, ImageSource source) async {
     final p = await ImagePicker().pickImage(source: source, imageQuality: 40);
     if (p == null) return;
@@ -121,7 +188,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  // --- FITUR: CETAK PDF SUPLISI UNTUK PETUGAS ---
+  // --- FITUR: CETAK PDF ---
   void _showSuplisiDialog() {
     final hargaCtrl = TextEditingController(text: "1973.42");
     showDialog(
@@ -150,7 +217,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  // --- LOGIKA KONFIRMASI (REVISI H-1) ---
+  // --- LOGIKA KONFIRMASI H-1 ---
   Future<void> _submit() async {
     if (_img == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Ambil atau upload foto bukti!")));
@@ -167,7 +234,6 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
       status == 'Menunggu Pemasangan' ? widget.taskData['tgl_pasang'] : widget.taskData['tgl_bongkar'],
     );
 
-    // REVISI LOGIKA: Pemasangan boleh H-1, Pembongkaran harus Pas Hari-H
     if (status == 'Menunggu Pemasangan') {
       DateTime hMinus1 = tglRencana.subtract(const Duration(days: 1));
       if (todayDate.isBefore(hMinus1)) {
@@ -186,7 +252,6 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     }
 
     setState(() => _loading = true);
-
     try {
       final String fileName = "${DateTime.now().millisecondsSinceEpoch}.jpg";
       final String path = "bukti_${widget.taskData['id']}/$fileName";
@@ -214,7 +279,6 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
   Widget build(BuildContext context) {
     bool isSelesai = widget.taskData['status'] == 'Selesai';
     bool isBongkar = widget.taskData['status'].toString().contains('Pembongkaran');
-
     bool checkPasang = isBongkar || isSelesai;
     bool checkBongkar = isSelesai;
 
@@ -243,7 +307,6 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // HEADER CONTAINER
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 30, horizontal: 20),
@@ -278,34 +341,66 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  // CARD 1: INFORMASI PELANGGAN
                   _buildSectionCard("INFORMASI PELANGGAN", [
                     _buildInfoRow(Icons.person_pin_rounded, "Nama Pemohon", widget.taskData['nama_pelanggan']),
+                    
+                    // DISPLAY: Nomor Telepon
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 18),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.withOpacity(0.08), borderRadius: BorderRadius.circular(10)), child: const Icon(Icons.contact_phone, size: 20, color: Colors.blue)),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text("Nomor Telepon Pelanggan", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w600)),
+                                const SizedBox(height: 3),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(widget.taskData['no_telp'] ?? "-", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+                                    if (widget.taskData['no_telp'] != null)
+                                      InkWell(
+                                        onTap: _contactCustomer,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                          decoration: BoxDecoration(color: Colors.blue.shade700, borderRadius: BorderRadius.circular(20)),
+                                          child: const Text("HUBUNGI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
                     _buildInfoRow(Icons.map_rounded, "Alamat Lengkap", widget.taskData['alamat']),
                     _buildInfoRow(Icons.bolt_rounded, "Daya Terpasang", "${widget.taskData['daya']} VA"),
                   ]),
 
                   const SizedBox(height: 16),
 
-                  // CARD 2: INPUT LAPANGAN
                   if (!isSelesai)
                     _buildSectionCard("INPUT HASIL LAPANGAN", [
                       const Text("Masukkan angka stand meter dan foto kwh meter sebagai bukti.", style: TextStyle(fontSize: 12, color: Colors.black54)),
                       const SizedBox(height: 20),
-                      
                       TextField(
                         controller: _standController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
-                          labelText: isBongkar ? "Stand Bongkar (KWH)" : "Stand Pasang (KWH)",
+                          label: Text(isBongkar ? "Stand Bongkar (KWH)" : "Stand Pasang (KWH)"),
                           hintText: "Contoh: 1250.50",
                           prefixIcon: const Icon(Icons.speed_rounded),
                           border: const OutlineInputBorder(),
                         ),
                       ),
-                      
                       const SizedBox(height: 20),
-
                       GestureDetector(
                         onTap: _showImageSourceDialog,
                         child: Container(
@@ -324,9 +419,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                               : ClipRRect(borderRadius: BorderRadius.circular(15), child: Image.file(_img!, fit: BoxFit.cover)),
                         ),
                       ),
-                      
                       const SizedBox(height: 25),
-
                       SizedBox(
                         width: double.infinity,
                         height: 55,
@@ -342,7 +435,6 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
 
                   const SizedBox(height: 16),
 
-                  // CARD 3: BUKTI PEKERJAAN & CETAK
                   _buildSectionCard("BUKTI DOKUMENTASI & CETAK", [
                     _buildPhotoViewerWithEdit("FOTO PEMASANGAN", checkPasang ? _getPublicUrl(widget.taskData['foto_pemasangan']) : null, () => _showEditOptions(true)),
                     const SizedBox(height: 20),
@@ -362,7 +454,6 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
 
                   const SizedBox(height: 16),
 
-                  // CARD 4: TITIK LOKASI
                   _buildSectionCard("TITIK LOKASI PENERANGAN", [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(15),
@@ -388,8 +479,6 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
       ),
     );
   }
-
-  // --- HELPER WIDGETS (IDENTIK DENGAN ASLI ANDA) ---
 
   Widget _buildPhotoViewerWithEdit(String title, String? url, VoidCallback onEdit) {
     bool hasUrl = url != null && url.isNotEmpty;

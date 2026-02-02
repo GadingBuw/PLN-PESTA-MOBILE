@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Ganti http dengan Supabase
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -17,9 +17,7 @@ class _ReportScreenState extends State<ReportScreen> {
   String selectedYear = DateFormat('yyyy').format(DateTime.now());
   bool isGenerating = false;
 
-  // Inisialisasi client Supabase
   final supabase = Supabase.instance.client;
-
   final Color primaryBlue = const Color(0xFF1A56F0);
   final Color bgGrey = const Color(0xFFF0F2F5);
 
@@ -40,15 +38,20 @@ class _ReportScreenState extends State<ReportScreen> {
 
   final List<String> years = ["2024", "2025", "2026", "2027"];
 
-  // Logika Pengganti API get_report PHP
   Future<void> _generatePdf() async {
     setState(() => isGenerating = true);
     try {
-      // 1. Tentukan rentang tanggal awal dan akhir bulan
+      // 1. Tentukan rentang tanggal awal dan akhir secara dinamis
+      final int year = int.parse(selectedYear);
+      final int month = int.parse(selectedMonth);
+      
       final String startDate = "$selectedYear-$selectedMonth-01";
-      final String endDate = "$selectedYear-$selectedMonth-31"; // Supabase akan menangani validasi tgl akhir
+      
+      // Menggunakan DateTime untuk mencari hari terakhir bulan tersebut secara otomatis
+      final DateTime lastDayDateTime = DateTime(year, month + 1, 0);
+      final String endDate = DateFormat('yyyy-MM-dd').format(lastDayDateTime);
 
-      // 2. Query ke Supabase dengan filter rentang tanggal
+      // 2. Query ke Supabase
       final response = await supabase
           .from('pesta_tasks')
           .select()
@@ -61,14 +64,14 @@ class _ReportScreenState extends State<ReportScreen> {
       if (data.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Data tidak ditemukan pada periode ini")),
+            const SnackBar(content: Text("Data tidak ditemukan pada periode ini"), backgroundColor: Colors.orange),
           );
         }
         setState(() => isGenerating = false);
         return;
       }
 
-      // --- LOGIKA GENERATE PDF (Sama seperti sebelumnya) ---
+      // 3. Logika Generate PDF
       String monthLabel = months.firstWhere((m) => m['value'] == selectedMonth)['label']!;
       final pdf = pw.Document();
 
@@ -92,12 +95,12 @@ class _ReportScreenState extends State<ReportScreen> {
               headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8, color: PdfColors.white),
               headerDecoration: const pw.BoxDecoration(color: PdfColors.blue800),
               cellStyle: const pw.TextStyle(fontSize: 7.5),
-              headers: ['No', 'ID Pel', 'Nama Pelanggan', 'Alamat', 'Daya', 'Pasang', 'Bongkar', 'Teknisi', 'Status'],
+              headers: ['No', 'Agenda', 'Nama Pelanggan', 'Alamat', 'Daya', 'Pasang', 'Bongkar', 'Teknisi', 'Status'],
               data: List<List<dynamic>>.generate(
                 data.length,
                 (index) => [
                   index + 1,
-                  data[index]['id_pelanggan'] ?? "-",
+                  data[index]['no_agenda'] ?? "-",
                   data[index]['nama_pelanggan'] ?? "-",
                   data[index]['alamat'] ?? "-",
                   "${data[index]['daya'] ?? '0'} VA",
@@ -135,7 +138,7 @@ class _ReportScreenState extends State<ReportScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Generate Laporan: $e")));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Gagal Generate Laporan: $e"), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => isGenerating = false);
