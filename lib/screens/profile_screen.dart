@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
-import 'login_screen.dart';
+import 'unit_selection_screen.dart'; // Arahkan logout ke sini
 
 class ProfileScreen extends StatefulWidget {
   final UserModel user;
@@ -16,7 +16,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String totalSelesai = "0";
   bool isLoading = true;
   bool isSaving = false;
-  bool _isEditing = false; // Flag untuk kontrol tampilan
+  bool _isEditing = false; 
   
   late TextEditingController _phoneController;
   final supabase = Supabase.instance.client;
@@ -30,12 +30,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _phoneController = TextEditingController(text: widget.user.phone);
     
-    // Jika nomor HP masih kosong, otomatis buka mode edit
     if (widget.user.phone.isEmpty) {
       _isEditing = true;
     }
 
-    if (widget.user.role.toLowerCase() != 'admin') {
+    // Hanya teknisi yang perlu memuat statistik pengerjaan
+    if (widget.user.role.toLowerCase() != 'admin' && widget.user.role.toLowerCase() != 'superadmin') {
       _loadStats();
     } else {
       setState(() {
@@ -44,6 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // FITUR: Load statistik pekerjaan teknisi (TETAP ADA)
   Future<void> _loadStats() async {
     try {
       final response = await supabase
@@ -63,6 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // FITUR: Update nomor HP (TETAP ADA)
   Future<void> _updateProfile() async {
     if (_phoneController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -71,9 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return;
     }
     
-    setState(() {
-      isSaving = true;
-    });
+    setState(() => isSaving = true);
 
     try {
       await supabase
@@ -88,35 +88,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        setState(() {
-          _isEditing = false; // Kembalikan ke tampilan teks setelah simpan
-        });
+        setState(() => _isEditing = false);
       }
     } catch (e) {
-      debugPrint("Gagal update: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+          SnackBar(content: Text("Gagal update: $e"), backgroundColor: Colors.red),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          isSaving = false;
-        });
-      }
+      if (mounted) setState(() => isSaving = false);
     }
   }
 
+  // FITUR: Logout & Hapus Seluruh Session (User & Unit)
   Future<void> _handleLogout() async {
     try {
-      await supabase.auth.signOut();
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('user_session');
+      await prefs.remove('unit_session'); // Hapus juga session unitnya
+
       if (mounted) {
+        // Kembali ke layar pemilihan unit (Gerbang Utama)
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (c) => const LoginScreen()),
+          MaterialPageRoute(builder: (c) => const UnitSelectionScreen()),
           (route) => false,
         );
       }
@@ -127,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    bool isAdmin = widget.user.role.toLowerCase() == 'admin';
+    bool isStaff = widget.user.role.toLowerCase() != 'admin' && widget.user.role.toLowerCase() != 'superadmin';
 
     return Scaffold(
       backgroundColor: bgGrey,
@@ -138,13 +134,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                if (!isAdmin) ...[
+                if (isStaff) ...[
                   _buildSectionTitle("RINGKASAN PERFORMA"),
                   _buildStatsCard(),
                   const SizedBox(height: 20),
                   
                   _buildSectionTitle("PENGATURAN PROFIL TEKNISI"),
-                  _buildDynamicPhoneField(), // Memanggil widget toggle edit
+                  _buildDynamicPhoneField(), 
                   const SizedBox(height: 20),
                 ],
                 
@@ -152,6 +148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _buildInfoCard(),
                 const SizedBox(height: 30),
                 _buildLogoutButton(),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -160,7 +157,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // WIDGET BARU: Menampilkan Teks jika sudah tersimpan, Input jika mode Edit
   Widget _buildDynamicPhoneField() {
     return Container(
       margin: const EdgeInsets.only(top: 10),
@@ -174,7 +170,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Layout saat nomor SUDAH tersimpan (Hanya Teks & Tombol Edit)
   Widget _buildReadLayout() {
     return Row(
       children: [
@@ -190,7 +185,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               const Text("Nomor HP Aktif", style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold)),
               const SizedBox(height: 2),
-              Text(_phoneController.text, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
+              Text(_phoneController.text.isEmpty ? "-" : _phoneController.text, 
+                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
             ],
           ),
         ),
@@ -202,7 +198,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Layout saat sedang MENGINPUT atau MENGUBAH nomor
   Widget _buildEditLayout() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -223,15 +218,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 15),
         Row(
           children: [
-            if (widget.user.phone.isNotEmpty)
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => setState(() => _isEditing = false),
-                  style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                  child: const Text("BATAL"),
-                ),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => setState(() => _isEditing = false),
+                style: OutlinedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                child: const Text("BATAL"),
               ),
-            if (widget.user.phone.isNotEmpty) const SizedBox(width: 10),
+            ),
+            const SizedBox(width: 10),
             Expanded(
               child: ElevatedButton(
                 onPressed: isSaving ? null : _updateProfile,
@@ -241,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 child: isSaving 
                   ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text("SIMPAN PERUBAHAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  : const Text("SIMPAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -251,6 +245,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildHeader() {
+    bool isSuper = widget.user.role.toLowerCase() == 'superadmin';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: 60, bottom: 30, left: 20, right: 20),
@@ -260,11 +255,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Column(
         children: [
-          CircleAvatar(radius: 45, backgroundColor: Colors.white, child: Icon(Icons.person, size: 50, color: primaryBlue)),
+          CircleAvatar(
+            radius: 45, 
+            backgroundColor: Colors.white, 
+            child: Icon(Icons.person, size: 50, color: primaryBlue)
+          ),
           const SizedBox(height: 15),
-          Text(widget.user.nama.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+          Text(widget.user.nama.toUpperCase(), 
+               style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 5),
-          Text("Level: ${widget.user.role.toUpperCase()}", style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              isSuper ? "ADMIN PUSAT" : "UNIT ${widget.user.unit.toUpperCase()}", 
+              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)
+            ),
+          ),
         ],
       ),
     );
@@ -280,7 +290,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const Icon(Icons.task_alt_rounded, color: Colors.green),
           const SizedBox(width: 15),
           const Expanded(child: Text("Total Pekerjaan Selesai", style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
-          isLoading ? const CircularProgressIndicator() : Text(totalSelesai, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green)),
+          isLoading 
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
+            : Text(totalSelesai, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.green)),
         ],
       ),
     );
@@ -293,9 +305,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: borderGrey)),
       child: Column(
         children: [
-          _buildInfoTile(Icons.alternate_email_rounded, "Username", "@${widget.user.username}"),
+          _buildInfoTile(Icons.alternate_email_rounded, "Username Sistem", "@${widget.user.username}"),
           const Divider(),
-          _buildInfoTile(Icons.admin_panel_settings_outlined, "Role Akses", widget.user.role),
+          _buildInfoTile(Icons.location_on_outlined, "Unit Kerja", "ULP ${widget.user.unit}"),
+          const Divider(),
+          _buildInfoTile(Icons.admin_panel_settings_outlined, "Role Akses", widget.user.role.toUpperCase()),
         ],
       ),
     );
@@ -303,14 +317,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildLogoutButton() {
     return ElevatedButton.icon(
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent.shade700, minimumSize: const Size(double.infinity, 54), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.redAccent.shade700, 
+        minimumSize: const Size(double.infinity, 54), 
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+      ),
       onPressed: _handleLogout,
       icon: const Icon(Icons.logout_rounded, color: Colors.white),
-      label: const Text("LOGOUT", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      label: const Text("KELUAR DARI AKUN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
     );
   }
 
-  Widget _buildSectionTitle(String title) => Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1));
+  Widget _buildSectionTitle(String title) => 
+      Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey, letterSpacing: 1));
 
   Widget _buildInfoTile(IconData icon, String label, String value) {
     return Padding(

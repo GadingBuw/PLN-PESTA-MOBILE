@@ -34,7 +34,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
         .getPublicUrl("$folder/$fileName");
   }
 
-  // --- FITUR: MULTI-CHANNEL COMMUNICATION ---
+  // --- FITUR: MULTI-CHANNEL COMMUNICATION (UTUH) ---
   Future<void> _contactCustomer() async {
     final String phone = widget.taskData['no_telp'] ?? "";
     if (phone.isEmpty) {
@@ -59,7 +59,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
               leading: const CircleAvatar(
                 backgroundColor: Colors.green,
                 radius: 15,
-                child: Icon(Icons.chat, color: Colors.white, size: 16), // Diganti agar tidak merah
+                child: Icon(Icons.chat, color: Colors.white, size: 16), 
               ),
               title: const Text('Kirim WhatsApp'),
               onTap: () {
@@ -89,7 +89,6 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  // Helper Launcher dengan pengecekan canLaunchUrl (Menghilangkan garis biru)
   Future<void> _launchExternalUrl(String urlString) async {
     final Uri url = Uri.parse(urlString);
     try {
@@ -105,7 +104,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     }
   }
 
-  // --- FITUR: PILIH SUMBER FOTO ---
+  // --- FITUR: PILIH SUMBER FOTO (UTUH) ---
   Future<void> _pickImage(ImageSource source) async {
     final p = await ImagePicker().pickImage(source: source, imageQuality: 40);
     if (p != null) setState(() => _img = File(p.path));
@@ -134,7 +133,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  // --- FITUR: EDIT FOTO ---
+  // --- FITUR: EDIT FOTO (UTUH) ---
   Future<void> _processEditPhoto(bool isPasang, ImageSource source) async {
     final p = await ImagePicker().pickImage(source: source, imageQuality: 40);
     if (p == null) return;
@@ -188,7 +187,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  // --- FITUR: CETAK PDF ---
+  // --- FITUR: CETAK PDF (UTUH) ---
   void _showSuplisiDialog() {
     final hargaCtrl = TextEditingController(text: "1973.42");
     showDialog(
@@ -217,7 +216,7 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
     );
   }
 
-  // --- LOGIKA KONFIRMASI H-1 ---
+  // --- LOGIKA KONFIRMASI H-1 (UTUH) ---
   Future<void> _submit() async {
     if (_img == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Ambil atau upload foto bukti!")));
@@ -462,7 +461,10 @@ class _TechDetailScreenState extends State<TechDetailScreen> {
                         child: FlutterMap(
                           options: MapOptions(initialCenter: loc, initialZoom: 15),
                           children: [
-                            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+                            TileLayer(
+                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'com.pesta.mobile', // FIX ACCESS BLOCKED
+                            ),
                             MarkerLayer(markers: [Marker(point: loc, width: 45, height: 45, child: Icon(Icons.location_on_rounded, color: primaryBlue, size: 45))]),
                           ],
                         ),

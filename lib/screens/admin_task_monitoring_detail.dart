@@ -5,10 +5,12 @@ import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 import 'admin_edit_task_screen.dart';
 import '../services/pdf_service.dart';
+import '../models/user_model.dart'; // Import Model
 
 class AdminTaskMonitoringDetail extends StatefulWidget {
   final Map taskData;
-  const AdminTaskMonitoringDetail({super.key, required this.taskData});
+  final UserModel? admin; // Tambahkan parameter opsional agar sinkron
+  const AdminTaskMonitoringDetail({super.key, required this.taskData, this.admin});
 
   @override
   State<AdminTaskMonitoringDetail> createState() => _AdminTaskMonitoringDetailState();
@@ -308,7 +310,7 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
                               children: [
                                 const Text(
                                   "Nomor Telepon / WA",
-                                  style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w600),
+                                  style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 2),
                                 Row(
@@ -351,6 +353,7 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
                     ),
                     _buildInfoRow(Icons.map_rounded, "Alamat Lengkap", widget.taskData['alamat']),
                     _buildInfoRow(Icons.bolt_rounded, "Daya Terpasang", "${widget.taskData['daya']} VA"),
+                    _buildInfoRow(Icons.location_city_rounded, "Unit Kerja", "ULP ${widget.taskData['unit'] ?? widget.admin?.unit ?? "-"}"),
                   ]),
                   
                   const SizedBox(height: 16),
@@ -391,7 +394,10 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
                         child: FlutterMap(
                           options: MapOptions(initialCenter: loc, initialZoom: 15),
                           children: [
-                            TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+                            TileLayer(
+                              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                              userAgentPackageName: 'com.pesta.mobile', // FIX ACCESS BLOCKED
+                            ),
                             MarkerLayer(
                               markers: [
                                 Marker(
@@ -514,7 +520,7 @@ class _AdminTaskMonitoringDetailState extends State<AdminTaskMonitoringDetail> {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w600),
+                  style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 2),
                 Text(

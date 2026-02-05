@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Tambahkan ini
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user_model.dart';
 import 'admin_home.dart';
 import 'tech_home.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  // Menambahkan parameter selectedUnit dari layar pemilihan unit
+  final String selectedUnit;
+  const LoginScreen({super.key, required this.selectedUnit});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -17,7 +19,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final p = TextEditingController();
   bool isLoading = true;
 
-  // Inisialisasi client Supabase
   final supabase = Supabase.instance.client;
 
   @override
@@ -26,26 +27,26 @@ class _LoginScreenState extends State<LoginScreen> {
     _checkSession();
   }
 
+  // FITUR: Cek Sesi Login (Tetap Ada)
   Future<void> _checkSession() async {
     final prefs = await SharedPreferences.getInstance();
     final String? savedUsername = prefs.getString('user_session');
 
     if (savedUsername != null) {
       try {
-        // Ambil data user dari tabel 'users' di Supabase
         final data = await supabase
             .from('users')
             .select()
             .eq('username', savedUsername)
-            .single(); // Ambil satu data saja
+            .single();
 
         if (mounted) {
-          final user = UserModel.fromMap(data); // Pastikan model Anda punya fromMap
+          final user = UserModel.fromMap(data);
           _navigateToHome(user);
         }
         return;
       } catch (e) {
-        debugPrint("Session user not found in Supabase: $e");
+        debugPrint("Sesi tidak valid: $e");
       }
     }
 
@@ -54,24 +55,35 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // FITUR: Logika Login dengan Filter Unit
   void login() async {
     if (u.text.isEmpty || p.text.isEmpty) return;
 
     setState(() => isLoading = true);
 
     try {
-      // Query ke Supabase untuk mencocokkan username dan password
-      final data = await supabase
+      // MODIFIKASI: Query mencocokkan Unit yang dipilih
+      // Catatan: Superadmin biasanya memiliki unit khusus atau bypass unit check
+      final query = supabase
           .from('users')
           .select()
           .eq('username', u.text)
-          .eq('password', p.text)
-          .maybeSingle(); // maybeSingle agar tidak error jika tidak ketemu
+          .eq('password', p.text);
+
+      // Jika bukan login sebagai admin pusat/superadmin, filter berdasarkan unit
+      final data = await query.maybeSingle();
 
       if (data != null) {
         final user = UserModel.fromMap(data);
+
+        // VALIDASI: Pastikan teknisi/admin login di unit yang tepat
+        if (user.role != 'superadmin' && user.unit != widget.selectedUnit) {
+          throw "Akun Anda tidak terdaftar di Unit ${widget.selectedUnit}";
+        }
+
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('user_session', user.username);
+        await prefs.setString('unit_session', user.unit); // Simpan session unit
 
         if (mounted) {
           _navigateToHome(user);
@@ -96,8 +108,9 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (c) =>
-            user.role == "admin" ? AdminHome(user: user) : TechHome(user: user),
+        builder: (c) => (user.role == "admin" || user.role == "superadmin") 
+            ? AdminHome(user: user) 
+            : TechHome(user: user),
       ),
     );
   }
@@ -133,7 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     'assets/images/logo_pln.png',
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) =>
-                        const Icon(Icons.bolt, size: 60, color: Colors.red),
+                        const Icon(Icons.bolt, size: 60, color: Colors.white),
                   ),
                 ),
               ),
@@ -147,9 +160,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   letterSpacing: 1.2,
                 ),
               ),
-              const Text(
-                "PLN - Pemasangan & Pembongkaran",
-                style: TextStyle(color: Colors.white70, fontSize: 13),
+              Text(
+                "Unit Kerja: ${widget.selectedUnit}",
+                style: const TextStyle(color: Colors.white70, fontSize: 13),
               ),
               const SizedBox(height: 50),
               Padding(
@@ -228,9 +241,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 60),
-              const Text(
-                "© 2026 PLN ULP Pacitan",
-                style: TextStyle(color: Colors.white54, fontSize: 11),
+              Text(
+                "© 2026 PLN ULP ${widget.selectedUnit}",
+                style: const TextStyle(color: Colors.white54, fontSize: 11),
               ),
               const SizedBox(height: 20),
             ],

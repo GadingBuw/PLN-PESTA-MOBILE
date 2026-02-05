@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:url_launcher/url_launcher.dart'; // Pastikan sudah install package ini
+import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart'; // Digunakan agar tidak kuning/warning
+import '../models/user_model.dart';
 import 'admin_tech_history_detail.dart';
 import 'admin_search_task_screen.dart';
 
 class AdminMonitoringScreen extends StatefulWidget {
+  final UserModel user; // Tambahkan ini agar data user diterima
   final VoidCallback? onBack;
-  const AdminMonitoringScreen({super.key, this.onBack});
+  const AdminMonitoringScreen({super.key, this.onBack, required this.user});
 
   @override
   State<AdminMonitoringScreen> createState() => _AdminMonitoringScreenState();
@@ -18,7 +21,6 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
   final supabase = Supabase.instance.client;
 
   // 2. Map bantu untuk menyimpan data nomor HP teknisi dari tabel 'users'
-  // Gunakan username sebagai Key untuk mencari nomor HP dengan cepat
   Map<String, String> techPhones = {};
 
   final Color primaryBlue = const Color(0xFF1A56F0);
@@ -29,17 +31,26 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
   void initState() {
     super.initState();
     
-    // Memuat data profil teknisi (Nomor HP) saat pertama kali masuk
+    // Memuat data profil teknisi (Nomor HP)
     _fetchTechDetails();
 
-    // Inisialisasi stream realtime Supabase. 'id' adalah primary key tabel
-    _monitoringStream = supabase
-        .from('pesta_tasks')
-        .stream(primaryKey: ['id'])
-        .order('created_at'); 
+    // LOGIKA MULTI-UNIT: Inisialisasi stream realtime Supabase
+    var query = supabase.from('pesta_tasks').stream(primaryKey: ['id']);
+
+    // Jika bukan superadmin, kunci monitoring hanya pada unit admin tsb
+    if (widget.user.role.toLowerCase() != 'superadmin') {
+      _monitoringStream = query
+          .eq('unit', widget.user.unit)
+          .order('created_at')
+          .map((data) => data); // .map digunakan untuk memastikan sinkronisasi tipe data (anti-merah)
+    } else {
+      _monitoringStream = query
+          .order('created_at')
+          .map((data) => data);
+    }
   }
 
-  // --- FITUR BARU: LOGIKA HUBUNGI TEKNISI ---
+  // FITUR: Logika Hubungi Teknisi (TETAP ADA)
   Future<void> _contactTechnician(String phone, String name) async {
     if (phone == "Belum diatur" || phone.isEmpty) {
       if (mounted) {
@@ -50,7 +61,6 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
       return;
     }
 
-    // Pembersihan format nomor (konversi 0 ke 62)
     String cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
     if (cleanPhone.startsWith('0')) {
       cleanPhone = '62${cleanPhone.substring(1)}';
@@ -108,7 +118,7 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
     );
   }
 
-  // Helper untuk membuka URL aplikasi luar
+  // Helper untuk membuka URL (WhatsApp/Telp/SMS)
   Future<void> _launchExternalUrl(String urlString) async {
     final Uri url = Uri.parse(urlString);
     try {
@@ -126,14 +136,16 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
     }
   }
 
-  // FUNGSI: Mengambil data nomor HP dari tabel 'users' untuk semua teknisi
+  // FUNGSI: Mengambil data nomor HP (Filter per unit jika bukan Superadmin)
   Future<void> _fetchTechDetails() async {
     try {
-      final response = await supabase
-          .from('users')
-          .select('username, phone')
-          .eq('role', 'teknisi');
-      
+      var query = supabase.from('users').select('username, phone').eq('role', 'teknisi');
+
+      if (widget.user.role.toLowerCase() != 'superadmin') {
+        query = query.eq('unit', widget.user.unit);
+      }
+
+      final response = await query;
       final List<dynamic> data = response as List;
       
       if (mounted) {
@@ -177,7 +189,6 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
 
     return techStats.values.map((data) {
       int pendingCount = data['pending'];
-      // Logika Kapasitas: Jika antrean >= 5 maka Penuh
       data['kapasitas'] = (pendingCount >= 5) ? "Jadwal Penuh" : "Tersedia";
       return data;
     }).toList();
@@ -185,6 +196,8 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
 
   @override
   Widget build(BuildContext context) {
+    bool isSuper = widget.user.role.toLowerCase() == 'superadmin';
+
     return Scaffold(
       backgroundColor: bgGrey,
       appBar: AppBar(
@@ -200,20 +213,16 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
             }
           },
         ),
-        title: const Column(
+        title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Monitoring",
-              style: TextStyle(color: Colors.white70, fontSize: 11),
+              isSuper ? "Monitoring Seluruh Unit" : "Monitoring Unit ${widget.user.unit}",
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
             ),
-            Text(
+            const Text(
               "Progress Global Teknisi",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -240,16 +249,7 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
           }
 
           if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Text(
-                  "Kesalahan Realtime: ${snapshot.error}",
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              ),
-            );
+            return Center(child: Text("Kesalahan Realtime: ${snapshot.error}", style: const TextStyle(color: Colors.red)));
           }
 
           final List<dynamic> listData = _processStreamData(snapshot.data ?? []);
@@ -264,24 +264,16 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
               children: [
                 const Text(
                   "Status Petugas Lapangan",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF444444),
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF444444)),
                 ),
                 const SizedBox(height: 4),
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.bolt, size: 12, color: Colors.green),
-                    SizedBox(width: 4),
+                    const Icon(Icons.bolt, size: 12, color: Colors.green),
+                    const SizedBox(width: 4),
                     Text(
-                      "Data diperbarui secara otomatis (Realtime)",
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.green,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      "Update Otomatis: ${DateFormat('HH:mm').format(DateTime.now())}",
+                      style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.bold),
                     ),
                   ],
                 ),
@@ -317,13 +309,6 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderGrey),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -347,48 +332,26 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: primaryBlue.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.engineering_rounded,
-                      color: primaryBlue,
-                      size: 24,
-                    ),
+                    decoration: BoxDecoration(color: primaryBlue.withOpacity(0.1), shape: BoxShape.circle),
+                    child: Icon(Icons.engineering_rounded, color: primaryBlue, size: 24),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          techUser.toUpperCase(),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
+                        Text(techUser.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                         const SizedBox(height: 3),
                         Row(
                           children: [
                             Icon(Icons.phone_android, size: 12, color: primaryBlue),
                             const SizedBox(width: 4),
-                            Text(
-                              techPhone,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: primaryBlue,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
+                            Text(techPhone, style: TextStyle(fontSize: 11, color: primaryBlue, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ],
                     ),
                   ),
-                  
-                  // --- TOMBOL BARU: HUBUNGI PETUGAS ---
                   ElevatedButton(
                     onPressed: () => _contactTechnician(techPhone, techUser),
                     style: ElevatedButton.styleFrom(
@@ -396,57 +359,34 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       minimumSize: const Size(0, 34),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       elevation: 0,
                     ),
-                    child: const Text(
-                      "HUBUNGI",
-                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
-                    ),
+                    child: const Text("HUBUNGI", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                   ),
                   const SizedBox(width: 8),
                   const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
                 ],
               ),
-              
               const SizedBox(height: 20),
-              
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    "Progress Pengerjaan",
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
-                  ),
-                  Text(
-                    "${(progressPercent * 100).toInt()}%",
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: primaryBlue,
-                    ),
-                  ),
+                  const Text("Progress Pengerjaan", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text("${(progressPercent * 100).toInt()}%", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryBlue)),
                 ],
               ),
-              
               const SizedBox(height: 8),
-              
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: progressPercent,
                   backgroundColor: const Color(0xFFF0F2F5),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    progressPercent == 1.0 ? Colors.green : primaryBlue,
-                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(progressPercent == 1.0 ? Colors.green : primaryBlue),
                   minHeight: 8,
                 ),
               ),
-              
               const SizedBox(height: 16),
-              
               Row(
                 children: [
                   _buildStatTile("SELESAI", selesai, Colors.green),
@@ -454,26 +394,18 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
                   _buildStatTile("ANTRIAN", pending, Colors.orange),
                 ],
               ),
-              
               const SizedBox(height: 12),
-              
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 decoration: BoxDecoration(
-                  color: statusKapasitas == "Jadwal Penuh" 
-                      ? Colors.red.withOpacity(0.05) 
-                      : Colors.green.withOpacity(0.05),
+                  color: statusKapasitas == "Jadwal Penuh" ? Colors.red.withOpacity(0.05) : Colors.green.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
                   child: Text(
                     statusKapasitas,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: statusKapasitas == "Jadwal Penuh" ? Colors.red : Colors.green,
-                    ),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusKapasitas == "Jadwal Penuh" ? Colors.red : Colors.green),
                   ),
                 ),
               ),
@@ -495,24 +427,9 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
         ),
         child: Column(
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: color,
-                fontSize: 9,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
-            ),
+            Text(label, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
             const SizedBox(height: 2),
-            Text(
-              value.toString(),
-              style: TextStyle(
-                color: color,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text(value.toString(), style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
       ),
@@ -526,10 +443,7 @@ class _AdminMonitoringScreenState extends State<AdminMonitoringScreen> {
           const SizedBox(height: 60),
           Icon(Icons.monitor_heart_outlined, size: 70, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          const Text(
-            "Belum ada data penugasan yang masuk.",
-            style: TextStyle(color: Colors.grey),
-          ),
+          const Text("Belum ada data penugasan yang masuk.", style: TextStyle(color: Colors.grey)),
         ],
       ),
     );

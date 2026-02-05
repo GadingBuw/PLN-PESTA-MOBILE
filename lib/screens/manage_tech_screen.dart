@@ -1,28 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // Impor SDK Supabase
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import '../models/user_model.dart';
 import 'tech_calendar_screen.dart';
 
 class ManageTechScreen extends StatelessWidget {
-  ManageTechScreen({super.key});
+  // Nama parameter disesuaikan menjadi 'user' agar sinkron dengan AdminHome
+  final UserModel user; 
+  ManageTechScreen({super.key, required this.user});
 
-  // Inisialisasi client Supabase
   final supabase = Supabase.instance.client;
 
   final Color primaryBlue = const Color(0xFF1A56F0);
   final Color bgGrey = const Color(0xFFF0F2F5);
   final Color borderGrey = const Color(0xFFE0E4E8);
 
-  // Fungsi untuk mengambil data teknisi dari tabel 'users' di Supabase
+  // FUNGSI: Mengambil data teknisi dengan filter UNIT (Multi-Unit)
   Future<List<UserModel>> _fetchTechnicians() async {
     try {
-      final response = await supabase
-          .from('users')
-          .select()
-          .eq('role', 'teknisi') // Filter hanya user dengan role teknisi
-          .order('nama', ascending: true); // Urutkan berdasarkan nama A-Z
+      var query = supabase.from('users').select().eq('role', 'teknisi');
 
+      // LOGIKA MULTI-UNIT: 
+      // Jika bukan superadmin, kunci data hanya untuk unit user yang login
+      if (user.role.toLowerCase() != 'superadmin') {
+        query = query.eq('unit', user.unit);
+      }
+
+      final response = await query.order('nama', ascending: true);
       final List<dynamic> data = response as List<dynamic>;
+      
       return data.map((u) => UserModel.fromMap(u)).toList();
     } catch (e) {
       debugPrint("Error fetching technicians: $e");
@@ -32,19 +37,29 @@ class ManageTechScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    bool isSuper = user.role.toLowerCase() == 'superadmin';
+
     return Scaffold(
       backgroundColor: bgGrey,
       appBar: AppBar(
-        title: const Text(
-          "Kelola Teknisi Lapangan",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isSuper ? "Seluruh Unit" : "Unit ${user.unit}",
+              style: const TextStyle(fontSize: 10, color: Colors.white70),
+            ),
+            const Text(
+              "Kelola Teknisi Lapangan",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         backgroundColor: primaryBlue,
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
       ),
-      // Menggunakan FutureBuilder untuk menangani data asinkron dari database
       body: FutureBuilder<List<UserModel>>(
         future: _fetchTechnicians(),
         builder: (context, snapshot) {
@@ -82,6 +97,13 @@ class ManageTechScreen extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderGrey),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -109,9 +131,22 @@ class ManageTechScreen extends StatelessWidget {
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            "Username: ${tech.username}",
-            style: const TextStyle(fontSize: 13, color: Colors.grey),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "ID: ${tech.username}",
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              Text(
+                "Unit: ${tech.unit}",
+                style: TextStyle(
+                  fontSize: 11, 
+                  color: primaryBlue, 
+                  fontWeight: FontWeight.bold
+                ),
+              ),
+            ],
           ),
         ),
         trailing: Container(
@@ -139,7 +174,7 @@ class ManageTechScreen extends StatelessWidget {
           Icon(Icons.people_outline_rounded, size: 60, color: Colors.grey[300]),
           const SizedBox(height: 16),
           const Text(
-            "Tidak ada teknisi ditemukan",
+            "Tidak ada teknisi ditemukan di unit ini",
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
         ],

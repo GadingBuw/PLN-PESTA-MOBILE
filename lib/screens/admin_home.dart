@@ -33,6 +33,7 @@ class _AdminHomeState extends State<AdminHome> {
     _refreshAllData();
   }
 
+  // FITUR: Sembunyikan notifikasi secara permanen di HP Admin ini
   Future<void> _loadHiddenNotifications() async {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
@@ -43,10 +44,10 @@ class _AdminHomeState extends State<AdminHome> {
     }
   }
 
-  Future<void> _hideNotificationPermanently(String idPelanggan) async {
+  Future<void> _hideNotificationPermanently(String noAgenda) async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      hiddenNotifIds.add(idPelanggan);
+      hiddenNotifIds.add(noAgenda);
     });
     await prefs.setStringList(
       'hidden_notifs_${widget.user.username}',
@@ -59,9 +60,17 @@ class _AdminHomeState extends State<AdminHome> {
     await _fetchNotifications();
   }
 
+  // FITUR: Ambil statistik pengerjaan (Filter per unit jika bukan Superadmin)
   Future<void> _fetchStats() async {
     try {
-      final response = await supabase.from('pesta_tasks').select('status');
+      var query = supabase.from('pesta_tasks').select('status, unit');
+      
+      // LOGIKA MULTI-UNIT:
+      if (widget.user.role != 'superadmin') {
+        query = query.eq('unit', widget.user.unit);
+      }
+
+      final response = await query;
       final List<dynamic> data = response as List<dynamic>;
 
       if (mounted) {
@@ -82,11 +91,16 @@ class _AdminHomeState extends State<AdminHome> {
     }
   }
 
+  // FITUR: Ambil notifikasi aktivitas terbaru (Filter per unit jika bukan Superadmin)
   Future<void> _fetchNotifications() async {
     try {
-      final response = await supabase
-          .from('pesta_tasks')
-          .select()
+      var query = supabase.from('pesta_tasks').select();
+      
+      if (widget.user.role != 'superadmin') {
+        query = query.eq('unit', widget.user.unit);
+      }
+
+      final response = await query
           .order('created_at', ascending: false)
           .limit(10);
 
@@ -106,7 +120,7 @@ class _AdminHomeState extends State<AdminHome> {
     }
   }
 
-  // --- POP UP DETAIL AKTIVITAS (BOTTOM SHEET) ---
+  // FITUR: Pop up Detail Aktivitas (Bottom Sheet) - TETAP ADA
   void _showDetailBottomSheet(Map<String, dynamic> n) {
     showModalBottomSheet(
       context: context,
@@ -144,7 +158,8 @@ class _AdminHomeState extends State<AdminHome> {
             const Divider(),
             const SizedBox(height: 20),
             _buildDetailItem("Teknisi Pelaksana", n['teknisi'] ?? "-"),
-            _buildDetailItem("ID Pelanggan / Agenda", n['id_pelanggan'] ?? "-"),
+            _buildDetailItem("Asal Unit", "PLN ULP ${n['unit'] ?? widget.user.unit}"),
+            _buildDetailItem("Nomor Agenda", n['no_agenda'] ?? "-"),
             _buildDetailItem("Nama Pelanggan", n['nama_pelanggan'] ?? "-"),
             _buildDetailItem("Alamat Lokasi", n['alamat'] ?? "-"),
             _buildDetailItem("Daya VA", "${n['daya'] ?? '0'} VA"),
@@ -236,7 +251,10 @@ class _AdminHomeState extends State<AdminHome> {
       appBar: _selectedIndex == 0 ? _buildAppBar() : null,
       body: [
         _buildBeranda(),
-        AdminMonitoringScreen(onBack: () => setState(() => _selectedIndex = 0)),
+        AdminMonitoringScreen(
+          user: widget.user, 
+          onBack: () => setState(() => _selectedIndex = 0)
+        ),
         ProfileScreen(user: widget.user),
       ][_selectedIndex],
       bottomNavigationBar: Container(
@@ -279,10 +297,10 @@ class _AdminHomeState extends State<AdminHome> {
   }
 
   AppBar _buildAppBar() {
+    bool isSuper = widget.user.role.toLowerCase() == 'superadmin';
     return AppBar(
       backgroundColor: Colors.white,
       elevation: 0,
-      // LOGO PLN DIPASANG KEMBALI DI SINI
       leading: Padding(
         padding: const EdgeInsets.all(8.0),
         child: ClipRRect(
@@ -298,9 +316,9 @@ class _AdminHomeState extends State<AdminHome> {
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Selamat datang,",
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+          Text(
+            isSuper ? "Admin Pusat (Seluruh Unit)" : "Admin PLN Unit ${widget.user.unit}",
+            style: const TextStyle(fontSize: 10, color: Colors.blue, fontWeight: FontWeight.bold),
           ),
           Text(
             widget.user.nama,
@@ -320,7 +338,7 @@ class _AdminHomeState extends State<AdminHome> {
         IconButton(
           onPressed: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (c) => const AdminNotificationScreen()),
+            MaterialPageRoute(builder: (c) => AdminNotificationScreen(user: widget.user)),
           ),
           icon: const Icon(Icons.notifications_none, color: Colors.black54),
         ),
@@ -352,7 +370,7 @@ class _AdminHomeState extends State<AdminHome> {
 
   Widget _buildNotificationList() {
     final visibleNotifs = dynamicNotifs
-        .where((n) => !hiddenNotifIds.contains(n['id_pelanggan'].toString()))
+        .where((n) => !hiddenNotifIds.contains(n['no_agenda'].toString()))
         .toList();
     if (visibleNotifs.isEmpty) {
       return const Center(
@@ -412,12 +430,17 @@ class _AdminHomeState extends State<AdminHome> {
                               ),
                             ),
                             Text(
-                              "${n['id_pelanggan']} - ${n['nama_pelanggan']}",
+                              "${n['no_agenda']} - ${n['nama_pelanggan']}",
                               style: const TextStyle(
                                 fontSize: 12,
                                 color: Colors.grey,
                               ),
                             ),
+                            if (widget.user.role == 'superadmin')
+                              Text(
+                                "Unit: ${n['unit']}",
+                                style: const TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold),
+                              ),
                           ],
                         ),
                       ),
@@ -428,7 +451,7 @@ class _AdminHomeState extends State<AdminHome> {
                           color: Colors.grey,
                         ),
                         onPressed: () => _hideNotificationPermanently(
-                          n['id_pelanggan'].toString(),
+                          n['no_agenda'].toString(),
                         ),
                       ),
                     ],
@@ -451,9 +474,9 @@ class _AdminHomeState extends State<AdminHome> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            "Status Pekerjaan Keseluruhan",
-            style: TextStyle(
+          Text(
+            widget.user.role == 'superadmin' ? "Status Pekerjaan Seluruh Unit" : "Status Pekerjaan Unit ${widget.user.unit}",
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 15,
               fontWeight: FontWeight.w500,
@@ -535,7 +558,7 @@ class _AdminHomeState extends State<AdminHome> {
             "Input",
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (c) => const AdminScreen()),
+              MaterialPageRoute(builder: (c) => AdminScreen(user: widget.user)),
             ).then((_) => _refreshAllData()),
           ),
           _buildMenuIcon(
@@ -548,7 +571,7 @@ class _AdminHomeState extends State<AdminHome> {
             "Teknisi",
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (c) => ManageTechScreen()),
+              MaterialPageRoute(builder: (c) => ManageTechScreen(user: widget.user)),
             ),
           ),
           _buildMenuIcon(
@@ -556,7 +579,7 @@ class _AdminHomeState extends State<AdminHome> {
             "Laporan",
             () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (c) => const ReportScreen()),
+              MaterialPageRoute(builder: (c) => ReportScreen(user: widget.user)),
             ),
           ),
         ],

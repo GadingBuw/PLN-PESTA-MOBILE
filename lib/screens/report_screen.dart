@@ -4,9 +4,11 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../models/user_model.dart'; // Import Model
 
 class ReportScreen extends StatefulWidget {
-  const ReportScreen({super.key});
+  final UserModel user; // Tambahkan parameter user agar tidak merah
+  const ReportScreen({super.key, required this.user});
 
   @override
   State<ReportScreen> createState() => _ReportScreenState();
@@ -38,23 +40,25 @@ class _ReportScreenState extends State<ReportScreen> {
 
   final List<String> years = ["2024", "2025", "2026", "2027"];
 
+  // FUNGSI UTAMA: Generate PDF dengan filter Multi-Unit
   Future<void> _generatePdf() async {
     setState(() => isGenerating = true);
     try {
-      // 1. Tentukan rentang tanggal awal dan akhir secara dinamis
       final int year = int.parse(selectedYear);
       final int month = int.parse(selectedMonth);
-      
       final String startDate = "$selectedYear-$selectedMonth-01";
-      
-      // Menggunakan DateTime untuk mencari hari terakhir bulan tersebut secara otomatis
       final DateTime lastDayDateTime = DateTime(year, month + 1, 0);
       final String endDate = DateFormat('yyyy-MM-dd').format(lastDayDateTime);
 
-      // 2. Query ke Supabase
-      final response = await supabase
-          .from('pesta_tasks')
-          .select()
+      // 1. QUERY MULTI-UNIT
+      var query = supabase.from('pesta_tasks').select();
+
+      // Jika bukan Superadmin, filter data hanya untuk unit admin tsb
+      if (widget.user.role.toLowerCase() != 'superadmin') {
+        query = query.eq('unit', widget.user.unit);
+      }
+
+      final response = await query
           .gte('tgl_pasang', startDate)
           .lte('tgl_pasang', endDate)
           .order('tgl_pasang', ascending: true);
@@ -71,9 +75,14 @@ class _ReportScreenState extends State<ReportScreen> {
         return;
       }
 
-      // 3. Logika Generate PDF
+      // 2. LOGIKA GENERATE PDF
       String monthLabel = months.firstWhere((m) => m['value'] == selectedMonth)['label']!;
       final pdf = pw.Document();
+
+      // Penentuan Judul Unit (Dinamis)
+      String unitTitle = widget.user.role.toLowerCase() == 'superadmin' 
+          ? "SELURUH UNIT" 
+          : "ULP ${widget.user.unit.toUpperCase()}";
 
       pdf.addPage(
         pw.MultiPage(
@@ -82,7 +91,7 @@ class _ReportScreenState extends State<ReportScreen> {
           header: (context) => pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("PT PLN (PERSERO) - ULP PACITAN", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+              pw.Text("PT PLN (PERSERO) - $unitTitle", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
               pw.Text("LAPORAN BULANAN PENUGASAN PESTA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
               pw.Text("Periode: $monthLabel / $selectedYear", style: pw.TextStyle(fontSize: 9)),
               pw.SizedBox(height: 5),
@@ -118,12 +127,12 @@ class _ReportScreenState extends State<ReportScreen> {
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
-                    pw.Text("Pacitan, ${DateFormat('dd MMMM yyyy', 'id_ID').format(DateTime.now())}", style: pw.TextStyle(fontSize: 9)),
+                    pw.Text("${widget.user.unit}, ${DateFormat('dd MMMM yyyy', 'id_ID').format(DateTime.now())}", style: pw.TextStyle(fontSize: 9)),
                     pw.Text("Admin PESTA Mobile", style: pw.TextStyle(fontSize: 9)),
                     pw.SizedBox(height: 40),
                     pw.Container(width: 130, decoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 1)))),
                     pw.SizedBox(height: 2),
-                    pw.Text("PLN ULP PACITAN", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                    pw.Text("PLN $unitTitle", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
                   ],
                 ),
               ],
@@ -134,7 +143,7 @@ class _ReportScreenState extends State<ReportScreen> {
 
       await Printing.layoutPdf(
         onLayout: (format) async => pdf.save(),
-        name: 'Laporan_${monthLabel}_$selectedYear.pdf',
+        name: 'Laporan_${widget.user.unit}_${monthLabel}_$selectedYear.pdf',
       );
     } catch (e) {
       if (mounted) {
@@ -173,7 +182,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   const SizedBox(height: 16),
                   const Text("Pilih Periode Laporan", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
                   const SizedBox(height: 4),
-                  const Text("Laporan akan di-generate dalam format PDF landscape", textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text("Laporan Unit ${widget.user.unit} akan dibuat dalam format landscape", textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 ],
               ),
             ),
